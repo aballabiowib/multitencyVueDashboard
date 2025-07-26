@@ -1,4 +1,3 @@
-<!-- src/components/dashboard-views/CustomerView.vue -->
 <template>
   <div class="customer-view-container">
     <!-- Sidebar Filtro/Ordinamento per Clienti -->
@@ -12,6 +11,7 @@
       :can-delete="true"
       label-singular="macchina"
       label-plural="macchine"
+      v-model:selectedItem="selectedCustomer"
       @item-selected="handleCustomerSelected"
       @item-deleted="handleCustomerDeleted"
     />
@@ -61,26 +61,59 @@
             <label for="companyName">Azienda:</label>
             <input type="text" id="companyName" v-model="selectedCustomer.company_name">
           </div>
-          <div class="input-field-group">
-            <label for="userCustomName">Nome Personalizzato:</label>
-            <input type="text" id="userCustomName" v-model="selectedCustomer.user_custom_name">
-          </div>
+          <!-- Campo "Nome Personalizzato" rimosso -->
           <div class="input-field-group">
             <label for="address">Indirizzo:</label>
             <input type="text" id="address" v-model="selectedCustomer.address">
           </div>
           <div class="input-field-group">
-            <label for="fiscalData">Dati Fiscali:</label>
-            <input type="text" id="fiscalData" v-model="selectedCustomer.fiscal_data">
-          </div>
-          <div class="input-field-group coordinates-group">
-            <label>Coordinate:</label>
-            <input type="text" id="latitude" v-model="selectedCustomer.latitude" placeholder="Latitudine">
-            <input type="text" id="longitude" v-model="selectedCustomer.longitude" placeholder="Longitudine">
+            <label for="email">Email:</label>
+            <input type="text" id="email" v-model="selectedCustomer.email">
           </div>
           <div class="input-field-group">
-            <label for="expiryDate">Scadenza Contratto:</label>
-            <input type="date" id="expiryDate" v-model="selectedCustomer.expiry_date">
+            <label for="vatNumber">Partita IVA:</label>
+            <input type="text" id="vatNumber" v-model="selectedCustomer.vat_number">
+          </div>
+          <div class="input-field-group">
+            <label for="fiscalCode">Codice Fiscale:</label>
+            <input type="text" id="fiscalCode" v-model="selectedCustomer.fiscal_code">
+          </div>
+          <!-- Campi Latitudine e Longitudine separati -->
+          <div class="input-field-group">
+            <label for="addressLatitude">Latitudine:</label>
+            <input type="text" id="addressLatitude" v-model="selectedCustomer.address_latitude">
+          </div>
+          <div class="input-field-group">
+            <label for="addressLongitude">Longitudine:</label>
+            <input type="text" id="addressLongitude" v-model="selectedCustomer.address_longitude">
+          </div>
+          <!-- Campo "Scadenza Contratto" rimosso -->
+
+          <!-- Logo Upload Section -->
+          <div class="input-field-group">
+            <label>Logo:</label>
+            <div 
+              class="logo-upload-box"
+              @dragover.prevent
+              @drop="handleFileDrop"
+              @click="triggerFileInput"
+            >
+              <template v-if="displayLogo && displayLogoType">
+                <img :src="`data:${displayLogoType};base64, ${displayLogo}`" class="current-logo" alt="Customer Logo"/>
+                <button @click.stop="clearLogo" class="clear-logo-button">X</button>
+              </template>
+              <template v-else>
+                <font-awesome-icon :icon="['fas', 'cloud-upload-alt']" class="upload-icon" />
+                <p>Trascina qui un'immagine o clicca per caricare</p>
+              </template>
+              <input 
+                type="file" 
+                ref="fileInputRef" 
+                @change="handleFileSelect" 
+                accept="image/*" 
+                style="display: none;" 
+              />
+            </div>
           </div>
           
           <button @click="saveCustomerChanges" class="save-button">Salva Modifiche</button>
@@ -126,7 +159,7 @@
 
 <script>
 import FilterableSidebar from '@/components/FilterableSidebar.vue';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 
@@ -148,6 +181,11 @@ export default {
 
     const authStore = useAuthStore();
     const router = useRouter();
+
+    // Refs for logo handling
+    const fileInputRef = ref(null);
+    const displayLogo = ref(null);
+    const displayLogoType = ref(null);
 
     const isTokenExpired = (token) => {
       if (!token) {
@@ -180,20 +218,10 @@ export default {
         const currentTimeMs = Date.now();
         const leewayMs = 5 * 60 * 1000;
 
-        console.log('--- Verifica Scadenza Token ---');
-        console.log('Token Expiration Date (stringa):', expirationDateString);
-        console.log('Token Expiration Time (ms):', expirationTime.getTime(), `(${expirationTime.toISOString()})`);
-        console.log('Current Time (ms):', currentTimeMs, `(${new Date(currentTimeMs).toISOString()})`);
-        console.log('Leeway (ms):', leewayMs);
-        console.log('Token scaduto (senza leeway)?', expirationTime.getTime() < currentTimeMs);
-        console.log('Token scaduto (con leeway)?', expirationTime.getTime() < (currentTimeMs - leewayMs));
-        console.log('-----------------------------');
-
         if (expirationTime.getTime() < (currentTimeMs - leewayMs)) {
           console.warn('Il token JWT è scaduto (o sta per scadere, con tolleranza).');
           return true;
         }
-        console.log('Il token JWT è valido.');
         return false;
       } catch (e) {
         console.error('isTokenExpired: Errore durante la decodifica o la verifica del token JWT:', e);
@@ -209,12 +237,10 @@ export default {
     // Funzione per recuperare i dati dei clienti dall'API
     // `backgroundFetch` indica se la chiamata è per un aggiornamento in background
     const fetchCustomers = async (pageToLoad = 1, sizeToLoad = initialPageSize, append = false, backgroundFetch = false) => {
-      // Imposta isLoading a true solo se non è un fetch in background E la lista è vuota (mostra overlay)
-      // O se è un append (mostra indicatore "Caricamento aggiuntivo...")
       if (!backgroundFetch && customerList.value.length === 0) {
         isLoading.value = true;
       } else if (append) {
-        isLoading.value = true; // Per mostrare l'indicatore di caricamento aggiuntivo
+        isLoading.value = true;
       }
       error.value = null;
 
@@ -267,10 +293,6 @@ export default {
 
         if (response.ok) {
           const rawData = await response.json();
-          console.log('Dati API clienti ricevuti:', rawData);
-          if (rawData.data && rawData.data.items && rawData.data.items.length > 0) {
-            console.log('Primo item API (per ispezionare logo):', rawData.data.items[0]);
-          }
 
           const itemsToMap = rawData.data && rawData.data.items ? rawData.data.items : [];
           totalItems.value = rawData.data && rawData.data.total_items ? rawData.data.total_items : itemsToMap.length;
@@ -281,15 +303,9 @@ export default {
             
             if (logoContentType === 'logo/png') {
               logoContentType = 'image/png';
-              console.warn('MIME type "logo/png" corretto in "image/png".');
             } else if (logoContentType === 'logo/jpeg' || logoContentType === 'logo/jpg') {
               logoContentType = 'image/jpeg';
-              console.warn('MIME type "logo/jpeg" corretto in "image/jpeg".');
             }
-
-            console.log(`Mappatura Logo per ${item.company_name}:`);
-            console.log(`  logo_base64 (diretto da item):`, logoBase64 ? logoBase64.substring(0, 30) + '...' : 'null/undefined');
-            console.log(`  logo_content_type (diretto da item, dopo correzione):`, logoContentType);
 
             return {
               customer_id: item.customer_id,
@@ -297,12 +313,18 @@ export default {
               total_machines: item.total_machines || 0,
               logo_base64: logoBase64,
               logo_content_type: logoContentType,
-              user_custom_name: item.user_custom_name || 'N/A',
-              expiry_date: item.expiry_date || 'N/A',
+              // user_custom_name: item.user_custom_name || 'N/A', // Rimosso
+              // expiry_date: item.expiry_date || 'N/A', // Rimosso
               address: item.address || 'N/A',
               fiscal_data: item.fiscal_data || 'N/A',
-              latitude: item.latitude || 'N/A',
-              longitude: item.longitude || 'N/A',
+              latitude: item.latitude || 'N/A', 
+              longitude: item.longitude || 'N/A', 
+              email: item.email || 'N/A',
+              vat_number: item.vat_number || 'N/A',
+              fiscal_code: item.fiscal_code || 'N/A',
+              address_latitude: item.address_latitude || '',
+              address_longitude: item.address_longitude || '',
+              logo_name: item.logo_name || null,
             };
           });
           
@@ -312,7 +334,6 @@ export default {
             customerList.value = mappedCustomers;
           }
 
-          // Salva la lista clienti nella cache dello store dopo un fetch riuscito
           authStore.saveCustomerListToCache(customerList.value);
 
         } else {
@@ -328,46 +349,124 @@ export default {
         console.error('Errore di rete o del server (catch):', err);
         error.value = 'Impossibile connettersi al server per i dati dei clienti. Controlla che il backend sia attivo e le configurazioni CORS.';
       } finally {
-        // Imposta isLoading a false solo dopo che la richiesta è completata
         isLoading.value = false;
       }
     };
 
+    // Funzione per recuperare i dettagli di un singolo cliente
+    const fetchCustomerDetails = async (customerId) => {
+      isLoading.value = true;
+      error.value = null;
+
+      if (!authStore.isAuthenticated || !authStore.token || isTokenExpired(authStore.token)) {
+        error.value = 'Sessione scaduta o non autenticata. Impossibile caricare i dettagli del cliente.';
+        isLoading.value = false;
+        await authStore.logout();
+        router.push('/');
+        return;
+      }
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`,
+        "Language": authStore.selectedLanguage || 'en-EN',
+        "EditData": "1",
+      };
+
+      let apiUrl = `http://localhost:8000/api/customer/${customerId}`;
+
+      console.log('Headers inviati alla API /api/customer/<pk>:', headers);
+      console.log('URL finale della richiesta dettagli cliente:', apiUrl);
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: headers,
+        });
+
+        if (response.ok) {
+          const rawData = await response.json();
+          console.log('Dati API dettaglio cliente ricevuti:', rawData);
+
+          const item = rawData; 
+          
+          let logoBase64 = item.logo_base64 || null;
+          let logoContentType = item.logo_content || null;
+
+          if (logoContentType === 'logo/png') {
+            logoContentType = 'image/png';
+          } else if (logoContentType === 'logo/jpeg' || logoContentType === 'logo/jpg') {
+            logoContentType = 'image/jpeg';
+          }
+
+          selectedCustomer.value = {
+            customer_id: item.customer_id,
+            company_name: item.company_name,
+            total_machines: item.total_machines || 0,
+            logo_base64: logoBase64,
+            logo_content_type: logoContentType,
+            // user_custom_name: item.user_custom_name || 'N/A', // Rimosso
+            // expiry_date: item.expiry_date || 'N/A', // Rimosso
+            address: item.address || 'N/A',
+            fiscal_data: item.fiscal_data || 'N/A',
+            latitude: item.latitude || 'N/A', 
+            longitude: item.longitude || 'N/A', 
+            email: item.email || '',
+            vat_number: item.vat_number || '',
+            fiscal_code: item.fiscal_code || '',
+            address_latitude: item.address_latitude || '',
+            address_longitude: item.address_longitude || '',
+            logo_name: item.logo_name || null,
+          };
+          
+          displayLogo.value = selectedCustomer.value.logo_base64;
+          displayLogoType.value = selectedCustomer.value.logo_content_type;
+
+        } else {
+          const errorText = await response.text();
+          console.error('Errore nel recupero dettagli cliente (risposta non ok):', response.status, errorText);
+          error.value = `Errore nel caricamento dei dettagli cliente: ${response.status} - ${errorText}`;
+          if (response.status === 401 || response.status === 403) {
+            await authStore.logout();
+            router.push('/');
+          }
+        }
+      } catch (err) {
+        console.error('Errore di rete o del server (catch dettagli cliente):', err);
+        error.value = 'Impossibile connettersi al server per i dati dei dettagli cliente.';
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
+
     const loadMoreCustomers = () => {
       if (!isLoading.value && hasMorePages.value) {
-        // isLoading viene impostato a true all'inizio di fetchCustomers quando append è true
         currentPage.value++;
         fetchCustomers(currentPage.value, subsequentPageSize, true); 
       }
     };
 
     onMounted(() => {
-      // Determina l'ID utente corrente per la logica della cache
       const currentUserId = authStore.user ? (authStore.user.user_id || authStore.user.username || authStore.user.customer_id) : null;
 
-      // Se l'utente è autenticato E la cache esiste per questo utente
       if (authStore.isAuthenticated && authStore.cachedCustomerListUserId === currentUserId && authStore.cachedCustomerList.length > 0) {
-        customerList.value = authStore.cachedCustomerList; // Carica IMMEDIATAMENTE dalla cache
+        customerList.value = authStore.cachedCustomerList;
         console.log('Clienti caricati dalla cache (istantaneo):', customerList.value.length);
-        isLoading.value = false; // Lo spinner dell'overlay scompare subito
+        isLoading.value = false;
         
-        // Avvia il fetch in background per aggiornare i dati
-        // Imposta isLoading a true per mostrare l'indicatore "Caricamento aggiuntivo..."
-        // ma non l'overlay principale
-        fetchCustomers(1, initialPageSize, false, true); // `true` per `backgroundFetch`
+        fetchCustomers(1, initialPageSize, false, true);
       } else if (authStore.isAuthenticated) {
-        // Se non c'è cache o utente cambiato, carica normalmente dall'API (mostra overlay)
         fetchCustomers(currentPage.value, initialPageSize, false); 
       } else {
-        // Se non autenticato, attendi l'autenticazione
         const unwatch = authStore.$subscribe((mutation, state) => {
           if (state.isAuthenticated) {
             const authenticatedUserId = state.user ? (state.user.user_id || state.user.username || state.user.customer_id) : null;
             if (state.cachedCustomerListUserId === authenticatedUserId && state.cachedCustomerList.length > 0) {
               customerList.value = state.cachedCustomerList;
               console.log('Clienti caricati dalla cache dopo autenticazione (istantaneo):', customerList.value.length);
-              isLoading.value = false; // Lo spinner dell'overlay scompare subito
-              fetchCustomers(1, initialPageSize, false, true); // Fetch in background
+              isLoading.value = false;
+              fetchCustomers(1, initialPageSize, false, true);
             } else {
               fetchCustomers(currentPage.value, initialPageSize, false);
             }
@@ -377,48 +476,65 @@ export default {
       }
     });
 
-    // Gestisce la selezione di un cliente dalla sidebar
-    const handleCustomerSelected = (item) => {
-      selectedCustomer.value = JSON.parse(JSON.stringify(item));
-      console.log('Cliente selezionato per modifica:', selectedCustomer.value);
+    const handleCustomerSelected = async (item) => {
+      if (!item) {
+        selectedCustomer.value = null;
+        displayLogo.value = null;
+        displayLogoType.value = null;
+        console.log('Cliente deselezionato dalla sidebar.');
+        return;
+      }
+      console.log('Cliente selezionato dalla sidebar, recupero dettagli completi per ID:', item.customer_id);
+      await fetchCustomerDetails(item.customer_id);
     };
 
-    // Salva le modifiche al cliente (chiamata API PUT/PATCH)
     const saveCustomerChanges = async () => {
       if (!selectedCustomer.value) return;
 
       console.log('Salvataggio modifiche per cliente:', selectedCustomer.value);
-      alert('Logica di salvataggio non implementata. Modifiche simulate salvate!');
+      console.log('Nuovi dati logo da salvare:', {
+        logo_name: selectedCustomer.value.logo_name,
+        logo_base64: selectedCustomer.value.logo_base64 ? selectedCustomer.value.logo_base64.substring(0, 30) + '...' : null,
+        logo_content_type: selectedCustomer.value.logo_content_type
+      });
+
+      console.log('Modifiche simulate salvate!');
       const index = customerList.value.findIndex(c => c.customer_id === selectedCustomer.value.customer_id);
       if (index !== -1) {
         customerList.value[index] = { ...selectedCustomer.value };
-        // Aggiorna la cache anche dopo il salvataggio di un singolo elemento
         authStore.saveCustomerListToCache(customerList.value);
       }
     };
 
-    // Aggiunge un nuovo cliente (per ora, simula l'apertura di un form vuoto)
     const addNewCustomer = () => {
       console.log('Aggiungi nuovo cliente cliccato.');
-      selectedCustomer.value = { // Oggetto vuoto per un nuovo cliente
-        customer_id: null, // O un ID temporaneo
+      selectedCustomer.value = { 
+        customer_id: null, 
         company_name: '',
-        user_custom_name: '',
         address: '',
         fiscal_data: '',
-        latitude: '',
-        longitude: '',
-        expiry_date: '',
+        latitude: '', 
+        longitude: '', 
+        email: '',
+        vat_number: '',
+        fiscal_code: '',
+        address_latitude: '',
+        address_longitude: '',
+        // expiry_date: '', // Rimosso
         total_machines: 0,
         logo_base64: null,
         logo_content_type: null,
+        logo_name: null,
       };
-      alert('Logica per aggiungere un nuovo cliente non implementata. Form vuoto caricato.');
+      displayLogo.value = null;
+      displayLogoType.value = null;
+      console.log('Logica per aggiungere un nuovo cliente non implementata. Form vuoto caricato.');
     };
 
-    // Esci dalla visualizzazione dettagliata del cliente
     const exitCustomerDetails = () => {
       selectedCustomer.value = null;
+      displayLogo.value = null;
+      displayLogoType.value = null;
       console.log('Uscito dalla visualizzazione dettagliata del cliente.');
     };
 
@@ -427,11 +543,70 @@ export default {
       customerList.value = customerList.value.filter(cust => cust.customer_id !== itemId);
       if (selectedCustomer.value && selectedCustomer.value.customer_id === itemId) {
         selectedCustomer.value = null;
+        displayLogo.value = null;
+        displayLogoType.value = null;
       }
       totalItems.value--;
-      // Aggiorna la cache anche dopo l'eliminazione
       authStore.saveCustomerListToCache(customerList.value);
     };
+
+    const triggerFileInput = () => {
+      fileInputRef.value.click();
+    };
+
+    const handleFileDrop = (event) => {
+      event.preventDefault();
+      const files = event.dataTransfer.files;
+      if (files.length > 0) {
+        processImageFile(files[0]);
+      }
+    };
+
+    const handleFileSelect = (event) => {
+      const files = event.target.files;
+      if (files.length > 0) {
+        processImageFile(files[0]);
+      }
+    };
+
+    const processImageFile = (file) => {
+      if (!file.type.startsWith('image/')) {
+        alert('Per favore, carica un file immagine valido.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64String = e.target.result.split(',')[1];
+        selectedCustomer.value.logo_base64 = base64String;
+        selectedCustomer.value.logo_content_type = file.type;
+        selectedCustomer.value.logo_name = file.name;
+
+        displayLogo.value = base64String;
+        displayLogoType.value = file.type;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    const clearLogo = () => {
+      if (selectedCustomer.value) {
+        selectedCustomer.value.logo_base64 = null;
+        selectedCustomer.value.logo_content_type = null;
+        selectedCustomer.value.logo_name = null;
+      }
+      displayLogo.value = null;
+      displayLogoType.value = null;
+      if (fileInputRef.value) {
+        fileInputRef.value.value = '';
+      }
+    };
+
+    watch(() => selectedCustomer.value?.logo_base64, (newLogoBase64) => {
+      if (selectedCustomer.value) {
+        displayLogo.value = newLogoBase64;
+        displayLogoType.value = selectedCustomer.value.logo_content_type;
+      }
+    });
 
     return {
       customerList,
@@ -444,7 +619,14 @@ export default {
       loadMoreCustomers,
       saveCustomerChanges,
       addNewCustomer,
-      exitCustomerDetails
+      exitCustomerDetails,
+      fileInputRef,
+      displayLogo,
+      displayLogoType,
+      triggerFileInput,
+      handleFileDrop,
+      handleFileSelect,
+      clearLogo,
     };
   }
 };
@@ -732,6 +914,69 @@ export default {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Stili per il logo upload box */
+.logo-upload-box {
+  width: 100px;
+  height: 100px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  background-color: #f9f9f9;
+  position: relative;
+  overflow: hidden; /* Assicura che il logo non esca dai bordi */
+}
+
+.logo-upload-box:hover {
+  border-color: #007bff;
+  background-color: #e9f5ff;
+}
+
+.logo-upload-box .upload-icon {
+  font-size: 2.5em;
+  color: #007bff;
+}
+
+.logo-upload-box p {
+  font-size: 0.7em;
+  color: #666;
+  margin-top: 5px;
+  padding: 0 5px;
+}
+
+.logo-upload-box .current-logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.clear-logo-button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: rgba(220, 53, 69, 0.8); /* Rosso semi-trasparente */
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clear-logo-button:hover {
+  background-color: #dc3545;
+}
+
 
 @media (max-width: 900px) {
   .selected-customer-details-layout {

@@ -20,7 +20,7 @@
         :key="item[itemKey]" 
         :id="`item_${item[itemKey]}`"
         class="item-element"
-        :class="{ 'selected-item': item[itemKey] === selectedItemId }"
+        :class="{ 'selected-item': internalSelectedItemId === item[itemKey] }" 
         @click="selectItem(item)"
       >
         <div class="item-row">
@@ -50,7 +50,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'; // Import ref and computed from Composition API
+import { ref, computed, watch, onMounted } from 'vue'; // Importa watch e onMounted
 
 export default {
   name: 'FilterableSidebar',
@@ -91,14 +91,35 @@ export default {
     labelPlural: { // Plural label for the count (e.g., 'elements')
       type: String,
       default: 'elementi'
+    },
+    // Nuova prop per il v-model
+    selectedItem: {
+      type: Object,
+      default: null
     }
   },
-  emits: ['item-selected', 'item-deleted'], // Defines events the component can emit
+  emits: ['item-selected', 'item-deleted', 'update:selectedItem'], // Aggiungi 'update:selectedItem'
 
   setup(props, { emit }) {
     const searchQuery = ref('');
     const sortOrder = ref('asc'); // 'asc' for ascending, 'desc' for descending
-    const selectedItemId = ref(null); // To track the selected item
+    const internalSelectedItemId = ref(null); // Usa un nome diverso per lo stato interno
+
+    // Inizializza internalSelectedItemId dalla prop all'inizio
+    onMounted(() => {
+      if (props.selectedItem) {
+        internalSelectedItemId.value = props.selectedItem[props.itemKey];
+      }
+    });
+
+    // Watcher per reagire ai cambiamenti della prop selectedItem dal genitore
+    watch(() => props.selectedItem, (newVal) => {
+      if (newVal) {
+        internalSelectedItemId.value = newVal[props.itemKey];
+      } else {
+        internalSelectedItemId.value = null; // Deseleziona se la prop diventa null
+      }
+    });
 
     // Filters items based on search query
     const filteredItems = computed(() => {
@@ -137,28 +158,42 @@ export default {
 
     // Handles item selection
     const selectItem = (item) => {
-      selectedItemId.value = item[props.itemKey];
-      emit('item-selected', item); // Emits the event with the selected item
+      if (internalSelectedItemId.value === item[props.itemKey]) {
+        // Se l'elemento è già selezionato, deselezionalo
+        internalSelectedItemId.value = null;
+        emit('update:selectedItem', null); // Emetti null per deselezionare nel genitore
+        emit('item-selected', null); // Emetti anche l'evento item-selected con null
+      } else {
+        // Altrimenti, seleziona il nuovo elemento
+        internalSelectedItemId.value = item[props.itemKey];
+        emit('update:selectedItem', item); // Emetti il nuovo elemento selezionato
+        emit('item-selected', item); // Emetti anche l'evento item-selected
+      }
     };
 
     // Handles item deletion
     const deleteItem = (item) => {
       if (confirm(`Sei sicuro di voler eliminare "${item[props.displayKey]}"?`)) {
         emit('item-deleted', item[props.itemKey]); // Emits the event with the ID of the item to delete
+        // Se l'elemento eliminato era quello selezionato, deselezionalo
+        if (internalSelectedItemId.value === item[props.itemKey]) {
+          internalSelectedItemId.value = null;
+          emit('update:selectedItem', null);
+        }
       }
     };
 
     // Label for machine count (singular/plural)
     const machineLabel = (count) => {
-      if (props.machineCountKey === null) return ''; // If key is not provided
+      if (props.machineCountKey === null || count === undefined || count === null) return ''; // Se la chiave o il conteggio non sono forniti
       return count === 1 ? props.labelSingular : props.labelPlural;
     };
 
     return {
       searchQuery,
       sortOrder,
-      selectedItemId,
-      filteredItems, // Not strictly necessary to expose, but useful for debugging
+      internalSelectedItemId, // Esposto per il template
+      filteredItems, 
       sortedItems,
       toggleSortOrder,
       selectItem,
