@@ -32,6 +32,9 @@ di code e per far partire il codice accendere il backend e poi far partire con l
 Vue: Start Dev Server (Vite), in questo modo partira il server di sviluppo di vue
 e si aprira una finestra del browser dove funzionera l'applicazione la versione di node 
 che avete deve essere >= v22.17.1, se non installato installare pinia
+
+// il file launch.json:
+
 {
     "version": "0.2.0",
     "configurations": [
