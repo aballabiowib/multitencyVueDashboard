@@ -57,37 +57,83 @@
         <!-- Sezione Sinistra: Dati del Cliente (input modificabili) -->
         <div class="customer-data-section">
           <h3>Dati Anagrafici e Contatto</h3>
-          <div class="input-field-group">
-            <label for="companyName">Azienda:</label>
-            <input type="text" id="companyName" v-model="selectedCustomer.company_name">
+          
+          <!-- Azienda ed Email affiancate -->
+          <div class="grid-row-2-columns">
+            <div class="input-field-group">
+              <label for="companyName">Azienda:</label>
+              <input 
+                type="text" 
+                id="companyName" 
+                v-model="selectedCustomer.company_name"
+                :class="getValidationClass(isCompanyNameValid, selectedCustomer.company_name, false)"
+              >
+            </div>
+            <div class="input-field-group">
+              <label for="email">Email:</label>
+              <input 
+                type="text" 
+                id="email" 
+                v-model="selectedCustomer.email"
+                :class="getValidationClass(isEmailValid, selectedCustomer.email, false)"
+              >
+            </div>
           </div>
-          <!-- Campo "Nome Personalizzato" rimosso -->
+
+          <!-- Indirizzo (intera riga) -->
           <div class="input-field-group">
             <label for="address">Indirizzo:</label>
-            <input type="text" id="address" v-model="selectedCustomer.address">
+            <input 
+              type="text" 
+              id="address" 
+              v-model="selectedCustomer.address"
+              :class="getValidationClass(isAddressValid, selectedCustomer.address, false)"
+            >
           </div>
-          <div class="input-field-group">
-            <label for="email">Email:</label>
-            <input type="text" id="email" v-model="selectedCustomer.email">
+          
+          <!-- Partita IVA e Codice Fiscale affiancati -->
+          <div class="grid-row-2-columns">
+            <div class="input-field-group">
+              <label for="vatNumber">Partita IVA:</label>
+              <input 
+                type="text" 
+                id="vatNumber" 
+                v-model="selectedCustomer.vat_number"
+                :class="getValidationClass(isVatNumberValid, selectedCustomer.vat_number, false)"
+              >
+            </div>
+            <div class="input-field-group">
+              <label for="fiscalCode">Codice Fiscale:</label>
+              <input 
+                type="text" 
+                id="fiscalCode" 
+                v-model="selectedCustomer.fiscal_code"
+                :class="getValidationClass(isFiscalCodeValid, selectedCustomer.fiscal_code, false)"
+              >
+            </div>
           </div>
-          <div class="input-field-group">
-            <label for="vatNumber">Partita IVA:</label>
-            <input type="text" id="vatNumber" v-model="selectedCustomer.vat_number">
+
+          <!-- Latitudine e Longitudine affiancate -->
+          <div class="grid-row-2-columns">
+            <div class="input-field-group">
+              <label for="addressLatitude">Latitudine:</label>
+              <input 
+                type="text" 
+                id="addressLatitude" 
+                v-model="selectedCustomer.address_latitude"
+                :class="getValidationClass(isAddressLatitudeValid, selectedCustomer.address_latitude, false)"
+              >
+            </div>
+            <div class="input-field-group">
+              <label for="addressLongitude">Longitudine:</label>
+              <input 
+                type="text" 
+                id="addressLongitude" 
+                v-model="selectedCustomer.address_longitude"
+                :class="getValidationClass(isAddressLongitudeValid, selectedCustomer.address_longitude, false)"
+              >
+            </div>
           </div>
-          <div class="input-field-group">
-            <label for="fiscalCode">Codice Fiscale:</label>
-            <input type="text" id="fiscalCode" v-model="selectedCustomer.fiscal_code">
-          </div>
-          <!-- Campi Latitudine e Longitudine separati -->
-          <div class="input-field-group">
-            <label for="addressLatitude">Latitudine:</label>
-            <input type="text" id="addressLatitude" v-model="selectedCustomer.address_latitude">
-          </div>
-          <div class="input-field-group">
-            <label for="addressLongitude">Longitudine:</label>
-            <input type="text" id="addressLongitude" v-model="selectedCustomer.address_longitude">
-          </div>
-          <!-- Campo "Scadenza Contratto" rimosso -->
 
           <!-- Logo Upload Section -->
           <div class="input-field-group">
@@ -117,25 +163,27 @@
           </div>
           
           <button @click="saveCustomerChanges" class="save-button">Salva Modifiche</button>
+
         </div>
 
         <!-- Sezione Destra: Pulsanti Funzione -->
         <div class="customer-buttons-section">
           <h3>Funzioni Disponibili</h3>
-          <div class="button-grid">
-            <button class="action-button">Funzione 1</button>
-            <button class="action-button">Funzione 2</button>
-            <button class="action-button">Funzione 3</button>
-            <button class="action-button">Funzione 4</button>
-            <button class="action-button">Funzione 5</button>
-            <button class="action-button">Funzione 6</button>
-            <button class="action-button">Funzione 7</button>
-            <button class="action-button">Funzione 8</button>
-            <button class="action-button">Funzione 9</button>
-            <button class="action-button">Funzione 10</button>
+          <div class="button-list-vertical">
+            <button class="action-button" @click="openApplication('ServiceEmailView')">Email di servizio</button>
+            <button class="action-button" @click="openApplication('ImpressumSettingsView')">Impostazione impressum</button>
+            <button class="action-button" @click="openApplication('OtherSettingsView')">Alte impostazioni</button>
+            <button v-if="authStore.user?.is_superuser" class="action-button" @click="openApplication('CustomerSettingsView')">Impostazioni cliente</button>
+            <button class="action-button" @click="openApplication('DefectListView')">Elenco difetti</button>
+            <button class="action-button" @click="openApplication('LanguageSelectionView')">Selezione lingua</button>
+            <button class="action-button" @click="openApplication('EmailTemplateMessagesView')">Messaggi email template</button>
+            <button class="action-button" @click="openApplication('PasswordSettingsView')">Password settings</button>
           </div>
         </div>
       </div>
+
+      <!-- Legenda di Validazione (NUOVA POSIZIONE) -->
+      <ValidationLegend v-if="selectedCustomer"/>
 
       <!-- Pulsante "Carica Altri" -->
       <div v-if="hasMorePages && !isLoading" class="load-more-container">
@@ -154,19 +202,56 @@
         <p>Caricamento in corso...</p>
       </div>
     </div>
+
+    <!-- Overlay per le Viste delle Applicazioni -->
+    <component 
+      :is="currentApplicationComponent" 
+      v-if="showApplicationOverlay" 
+      v-bind="currentApplicationProps"
+      @close="closeApplication" 
+    />
   </div>
 </template>
 
 <script>
 import FilterableSidebar from '@/components/FilterableSidebar.vue';
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, shallowRef } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
+
+// Importa tutti i nuovi componenti delle applicazioni
+import ServiceEmailView from '@/components/customer-application-views/ServiceEmailView.vue';
+import ImpressumSettingsView from '@/components/customer-application-views/ImpressumSettingsView.vue';
+import OtherSettingsView from '@/components/customer-application-views/OtherSettingsView.vue';
+import CustomerSettingsView from '@/components/customer-application-views/CustomerSettingsView.vue';
+import DefectListView from '@/components/customer-application-views/DefectListView.vue';
+import LanguageSelectionView from '@/components/customer-application-views/LanguageSelectionView.vue';
+import EmailTemplateMessagesView from '@/components/customer-application-views/EmailTemplateMessagesView.vue';
+import PasswordSettingsView from '@/components/customer-application-views/PasswordSettingsView.vue';
+import ValidationLegend from '@/components/ValidationLegend.vue'; // Importa il componente leggenda con percorso corretto
+
+// Importa le regex dal file utils
+import { 
+  emailRegex, 
+  companyNameAddressRegex, 
+  vatFiscalCodeRegex, 
+  floatNumberRegex 
+} from '@/utils/regex';
 
 export default {
   name: 'CustomerView',
   components: {
-    FilterableSidebar
+    FilterableSidebar,
+    // Registra i componenti delle applicazioni per l'uso dinamico
+    ServiceEmailView,
+    ImpressumSettingsView,
+    OtherSettingsView,
+    CustomerSettingsView,
+    DefectListView,
+    LanguageSelectionView,
+    EmailTemplateMessagesView,
+    PasswordSettingsView,
+    ValidationLegend, // Registra il componente leggenda
   },
   setup() {
     const customerList = ref([]);
@@ -186,6 +271,11 @@ export default {
     const fileInputRef = ref(null);
     const displayLogo = ref(null);
     const displayLogoType = ref(null);
+
+    // Stato per la gestione delle finestre delle applicazioni
+    const currentApplicationComponent = shallowRef(null); // Usa shallowRef per i componenti dinamici
+    const showApplicationOverlay = ref(false);
+    const currentApplicationProps = ref({}); // Nuovo ref per le props dinamiche
 
     const isTokenExpired = (token) => {
       if (!token) {
@@ -233,6 +323,30 @@ export default {
       if (totalItems.value === 0 && customerList.value.length === 0) return false;
       return customerList.value.length < totalItems.value;
     });
+
+    // Funzione per determinare la classe di validazione del bordo
+    const getValidationClass = (isValid, value, isOptional) => {
+      const stringValue = String(value || '');
+      const trimmedValue = stringValue.trim();
+
+      // Se il campo è vuoto
+      if (trimmedValue === '') {
+        return isOptional ? 'border-blue' : 'border-red'; // Blu se opzionale, rosso se obbligatorio
+      }
+      
+      // Se il campo ha contenuto, controlla la validità
+      return isValid ? 'border-green' : 'border-red';
+    };
+
+    // Computed properties per la validazione dei campi
+    const isCompanyNameValid = computed(() => companyNameAddressRegex.test(selectedCustomer.value?.company_name || ''));
+    const isEmailValid = computed(() => emailRegex.test(selectedCustomer.value?.email || ''));
+    const isAddressValid = computed(() => companyNameAddressRegex.test(selectedCustomer.value?.address || ''));
+    const isVatNumberValid = computed(() => vatFiscalCodeRegex.test(selectedCustomer.value?.vat_number || ''));
+    const isFiscalCodeValid = computed(() => vatFiscalCodeRegex.test(selectedCustomer.value?.fiscal_code || ''));
+    const isAddressLatitudeValid = computed(() => floatNumberRegex.test(selectedCustomer.value?.address_latitude || ''));
+    const isAddressLongitudeValid = computed(() => floatNumberRegex.test(selectedCustomer.value?.address_longitude || ''));
+
 
     // Funzione per recuperare i dati dei clienti dall'API
     // `backgroundFetch` indica se la chiamata è per un aggiornamento in background
@@ -313,8 +427,6 @@ export default {
               total_machines: item.total_machines || 0,
               logo_base64: logoBase64,
               logo_content_type: logoContentType,
-              // user_custom_name: item.user_custom_name || 'N/A', // Rimosso
-              // expiry_date: item.expiry_date || 'N/A', // Rimosso
               address: item.address || 'N/A',
               fiscal_data: item.fiscal_data || 'N/A',
               latitude: item.latitude || 'N/A', 
@@ -373,6 +485,23 @@ export default {
         "EditData": "1",
       };
 
+      // Aggiungi l'header 'Customer' qui per la richiesta di dettaglio singolo
+      // Questo header dovrebbe riflettere il cliente attualmente selezionato o l'utente che agisce
+      // Per il dettaglio singolo, potrebbe non essere strettamente necessario se l'API lo gestisce via PK
+      // Ma se il backend ha bisogno di sapere quale "tenant" sta facendo la richiesta, è utile.
+      if (authStore.user && authStore.user.is_superuser === true) {
+        headers['Customer'] = ''; // Superuser può vedere tutti
+      } else if (authStore.user && authStore.user.company_name) {
+        headers['Customer'] = authStore.user.company_name; // Utente normale agisce per la sua azienda
+      } else if (selectedCustomer.value?.company_name) {
+        // Fallback: se un cliente è già selezionato, usa il suo company_name
+        // Questo è un caso limite, di solito l'utente che agisce è il riferimento
+        headers['Customer'] = selectedCustomer.value.company_name;
+      } else {
+        console.warn('user.is_superuser o user.company_name non disponibili per l\'header Customer per fetchCustomerDetails.');
+      }
+
+
       let apiUrl = `http://localhost:8000/api/customer/${customerId}`;
 
       console.log('Headers inviati alla API /api/customer/<pk>:', headers);
@@ -401,12 +530,10 @@ export default {
 
           selectedCustomer.value = {
             customer_id: item.customer_id,
-            company_name: item.company_name,
+            company_name: item.company_name, // Questo è il valore chiave che vogliamo passare
             total_machines: item.total_machines || 0,
             logo_base64: logoBase64,
             logo_content_type: logoContentType,
-            // user_custom_name: item.user_custom_name || 'N/A', // Rimosso
-            // expiry_date: item.expiry_date || 'N/A', // Rimosso
             address: item.address || 'N/A',
             fiscal_data: item.fiscal_data || 'N/A',
             latitude: item.latitude || 'N/A', 
@@ -513,14 +640,11 @@ export default {
         company_name: '',
         address: '',
         fiscal_data: '',
-        latitude: '', 
-        longitude: '', 
         email: '',
         vat_number: '',
         fiscal_code: '',
         address_latitude: '',
         address_longitude: '',
-        // expiry_date: '', // Rimosso
         total_machines: 0,
         logo_base64: null,
         logo_content_type: null,
@@ -608,6 +732,46 @@ export default {
       }
     });
 
+    // --- LOGICA DI APERTURA/CHIUSURA APPLICAZIONI ---
+    // Mappa i nomi dei componenti a stringhe per l'uso con shallowRef
+    const appComponentsMap = {
+      ServiceEmailView,
+      ImpressumSettingsView,
+      OtherSettingsView,
+      CustomerSettingsView,
+      DefectListView,
+      LanguageSelectionView,
+      EmailTemplateMessagesView,
+      PasswordSettingsView,
+    };
+
+    const openApplication = (componentName) => {
+      if (appComponentsMap[componentName]) {
+        currentApplicationComponent.value = appComponentsMap[componentName];
+        // Prepara le props comuni per tutti i componenti, se un cliente è selezionato
+        if (selectedCustomer.value && selectedCustomer.value.company_name) {
+          currentApplicationProps.value = { companyName: selectedCustomer.value.company_name };
+          console.log(`Passando companyName a ${componentName}: ${selectedCustomer.value.company_name}`);
+        } else {
+          currentApplicationProps.value = {}; // Assicurati che non ci siano props residue se nessun cliente è selezionato
+          console.warn(`Tentativo di aprire ${componentName} senza companyName selezionato.`);
+        }
+        
+        showApplicationOverlay.value = true;
+        console.log(`Apertura applicazione: ${componentName}`);
+      } else {
+        console.error(`Componente applicazione "${componentName}" non trovato.`);
+      }
+    };
+
+    const closeApplication = () => {
+      showApplicationOverlay.value = false;
+      currentApplicationComponent.value = null;
+      currentApplicationProps.value = {}; // Cancella le props alla chiusura
+      console.log('Chiusura applicazione.');
+    };
+
+
     return {
       customerList,
       selectedCustomer,
@@ -627,6 +791,22 @@ export default {
       handleFileDrop,
       handleFileSelect,
       clearLogo,
+      authStore, 
+      // Esporre le nuove variabili e funzioni per le applicazioni
+      currentApplicationComponent,
+      showApplicationOverlay,
+      openApplication,
+      closeApplication,
+      currentApplicationProps, // <--- Modifica qui: Esporre currentApplicationProps
+      // Esporre le computed per la validazione
+      getValidationClass,
+      isCompanyNameValid,
+      isEmailValid,
+      isAddressValid,
+      isVatNumberValid,
+      isFiscalCodeValid,
+      isAddressLatitudeValid,
+      isAddressLongitudeValid,
     };
   }
 };
@@ -785,14 +965,18 @@ export default {
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
 }
 
-.coordinates-group input {
-  width: calc(50% - 16px);
-  display: inline-block;
-  margin-right: 10px;
+/* Nuovo stile per le righe a due colonne */
+.grid-row-2-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Due colonne di uguale larghezza */
+  gap: 15px; /* Spazio tra le colonne */
 }
-.coordinates-group input:last-child {
-  margin-right: 0;
+
+/* Assicurati che i campi input all'interno della griglia mantengano il loro layout */
+.grid-row-2-columns .input-field-group {
+  margin-bottom: 0; /* Rimuovi il margin-bottom se gestito dal gap della griglia */
 }
+
 
 .save-button {
   background-color: #007bff;
@@ -828,6 +1012,13 @@ export default {
   gap: 15px;
 }
 
+/* Nuovo stile per l'allineamento verticale dei pulsanti */
+.button-list-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Spazio tra i pulsanti */
+}
+
 .action-button {
   background-color: #28a745;
   color: white;
@@ -839,6 +1030,7 @@ export default {
   font-weight: bold;
   transition: background-color 0.3s ease, transform 0.2s ease;
   white-space: nowrap;
+  width: 100%; /* Assicura che i pulsanti occupino tutta la larghezza disponibile */
 }
 
 .action-button:hover {
@@ -975,6 +1167,22 @@ export default {
 
 .clear-logo-button:hover {
   background-color: #dc3545;
+}
+
+/* Classi per i bordi di validazione (con !important per priorità) */
+.input-field-group input.border-red {
+  border-color: #dc3545 !important;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25) !important;
+}
+
+.input-field-group input.border-green {
+  border-color: #28a745 !important;
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25) !important;
+}
+
+.input-field-group input.border-blue {
+  border-color: #007bff !important;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25) !important;
 }
 
 
