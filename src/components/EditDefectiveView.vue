@@ -7,6 +7,13 @@
       <div v-if="isLoading" class="loading-indicator">Caricamento dati difetto...</div>
       <div v-else-if="error" class="error-message">{{ error }}</div>
       <div v-else class="form-section">
+        <!-- Riquadro con il testo originale del difetto nella lingua del browser -->
+        <div class="original-content-box">
+            <h4>Contenuto originale ({{ displayedBrowserLanguageName }})</h4>
+            <p><strong>Titolo:</strong> {{ originalDefectContent.title }}</p>
+            <p><strong>Descrizione:</strong> {{ originalDefectContent.description }}</p>
+        </div>
+
         <!-- Input box per la lingua selezionata - Prima riga del form -->
         <div class="input-field-group language-input-field">
           <label for="messageLanguage">Lingua del Messaggio:</label>
@@ -98,6 +105,10 @@ export default {
         title: '',      // Inizializzato a stringa vuota
         description: '', // Inizializzato a stringa vuota
       },
+      originalDefectContent: { // Nuovo stato per il contenuto originale
+        title: '',
+        description: '',
+      },
       isLoading: false,
       error: null,
     };
@@ -120,6 +131,14 @@ export default {
     displayedLanguageName() {
       const language = languagesData.find(lang => lang.code === this.selectedLanguage);
       return language ? language.name : this.selectedLanguage;
+    },
+    /**
+     * Restituisce il nome completo della lingua basato sulla lingua del browser.
+     */
+    displayedBrowserLanguageName() {
+        const browserLanguage = navigator.language || 'en-US';
+        const language = languagesData.find(lang => lang.code.toLowerCase() === browserLanguage.toLowerCase());
+        return language ? language.name : browserLanguage;
     }
   },
   mounted() {
@@ -210,39 +229,68 @@ export default {
         return;
       }
 
-      try {
-        const apiUrl = `http://localhost:8000/api/item_issue/${this.defectId}`;
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.authStore.token}`,
-          'Language': this.selectedLanguage, // Usa la lingua ricevuta dalla prop
-          'Customer': this.companyName, // Passa l'header Customer
-        };
+      // Lingua per cui visualizzare la traduzione
+      const translationLanguage = this.selectedLanguage;
+      // Lingua originale per la traduzione (quella del browser)
+      const originalLanguage = navigator.language || 'en-US';
 
-        const response = await fetch(apiUrl, {
+      try {
+        // Chiamata per recuperare la traduzione (per i campi modificabili)
+        const translationResponse = await fetch(`http://localhost:8000/api/item_issue/${this.defectId}`, {
           method: 'GET',
           mode: 'cors',
-          headers: headers,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.authStore.token}`,
+            'Language': translationLanguage,
+            'Customer': this.companyName,
+          },
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Errore sconosciuto' }));
+        if (!translationResponse.ok) {
+          const errorData = await translationResponse.json().catch(() => ({ message: 'Errore sconosciuto' }));
           throw new Error(
-            `HTTP error! status: ${response.status} - ${errorData.message || response.statusText}`
+            `HTTP error for translation! status: ${translationResponse.status} - ${errorData.message || translationResponse.statusText}`
           );
         }
 
-        const item = await response.json();
-        console.log('Dettagli difetto ricevuti:', item);
-
-        // Popola l'oggetto defect con i dati ricevuti, gestendo null con stringhe vuote
+        const translationData = await translationResponse.json();
+        console.log('Dettagli difetto (traduzione) ricevuti:', translationData);
         this.defect = {
-          id: item.id,
-          code: item.code || '',
-          title: item.title || '',      // Assicurati che sia una stringa vuota se null
-          description: item.description || '', // Assicurati che sia una stringa vuota se null
-          // Assicurati di mappare tutti i campi rilevanti
+          id: translationData.id,
+          code: translationData.code || '',
+          title: translationData.title || '',
+          description: translationData.description || '',
         };
+
+        // Chiamata per recuperare il contenuto originale (per il riquadro)
+        const originalResponse = await fetch(`http://localhost:8000/api/item_issue/${this.defectId}`, {
+          method: 'GET',
+          mode: 'cors',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.authStore.token}`,
+            'Language': originalLanguage,
+            'Customer': this.companyName,
+          },
+        });
+
+        if (!originalResponse.ok) {
+           // Gestisci il caso in cui il contenuto originale non sia disponibile
+           this.originalDefectContent = {
+               title: 'Contenuto non disponibile nella lingua del browser.',
+               description: 'Contenuto non disponibile nella lingua del browser.',
+           };
+        } else {
+            const originalData = await originalResponse.json();
+            console.log('Dettagli difetto (originale) ricevuti:', originalData);
+            this.originalDefectContent = {
+                title: originalData.title || '',
+                description: originalData.description || '',
+            };
+        }
+
+
       } catch (e) {
         console.error('Errore nel recupero dei dettagli del difetto:', e);
         this.error = `Impossibile caricare i dettagli del difetto: ${e.message}.`;
@@ -381,12 +429,6 @@ h3 {
   text-align: center;
 }
 
-/* Stili per la visualizzazione della lingua */
-.language-input-field { /* Usiamo questa classe per lo stile del campo input della lingua */
-  flex-basis: 100%; /* Occupa tutta la larghezza */
-  min-width: unset; /* Rimuovi min-width se presente */
-}
-
 /* Stili per la sezione del form */
 .form-section {
   display: flex;
@@ -394,6 +436,42 @@ h3 {
   flex-wrap: wrap; /* Permette il wrap su schermi più piccoli */
   gap: 15px; /* Spazio tra i campi */
   margin-bottom: 20px;
+}
+
+/* Nuovo stile per il riquadro del contenuto originale */
+.original-content-box {
+    flex-basis: 100%; /* Occupa l'intera larghezza */
+    padding: 15px;
+    background-color: #e0f0ff; /* Sfondo verde chiaro */
+    border: 1px solid #007bff;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.original-content-box h4 {
+    color: #007bff;
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-top: 0;
+    margin-bottom: 10px;
+    text-align: left;
+    border-bottom: 1px dashed #007bff;
+    padding-bottom: 5px;
+}
+.original-content-box p {
+    margin: 0;
+    font-size: 0.9em;
+    color: #333;
+    line-height: 1.4;
+}
+.original-content-box strong {
+    color: #111;
+}
+
+/* Stili per la visualizzazione della lingua */
+.language-input-field { /* Usiamo questa classe per lo stile del campo input della lingua */
+  flex-basis: 100%; /* Occupa tutta la larghezza */
+  min-width: unset; /* Rimuovi min-width se presente */
 }
 
 .input-field-group {

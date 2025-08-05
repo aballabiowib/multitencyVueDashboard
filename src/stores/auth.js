@@ -38,6 +38,7 @@ export const useAuthStore = defineStore('auth', {
       nome: savedAuthState ? savedAuthState.nome : null,
       cognome: savedAuthState ? savedAuthState.cognome : null,
       dataScadenza: savedAuthState ? savedAuthState.dataScadenza : null,
+      language: savedAuthState ? savedAuthState.language : null,
       //usename: savedAuthState ? savedAuthState.username : null,
       
       cachedCustomerList: savedCustomerList || [],
@@ -72,6 +73,7 @@ export const useAuthStore = defineStore('auth', {
       this.cognome = apiResponseData.cognome || null;
       this.dataScadenza = apiResponseData.dataScadenza || null;
       this.cachedCustomerListUserId = newLoggedInUserId;
+      this.language = apiResponseData.default_locale
 
       this.saveAuthStateToLocalStorage();
     },
@@ -84,6 +86,7 @@ export const useAuthStore = defineStore('auth', {
       this.nome = null;
       this.cognome = null;
       this.dataScadenza = null;
+      this.language = null;
       
       this.saveAuthStateToLocalStorage();
       this.clearCachedCustomerList();
@@ -99,6 +102,7 @@ export const useAuthStore = defineStore('auth', {
           nome: this.nome,
           cognome: this.cognome,
           dataScadenza: this.dataScadenza,
+          language: this.language
         };
         localStorage.setItem(AUTH_STATE_KEY, JSON.stringify(stateToSave));
       } catch (e) {

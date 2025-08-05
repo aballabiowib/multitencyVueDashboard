@@ -7,8 +7,7 @@
       item-key="customer_id"
       display-key="company_name"
       machine-count-key="total_machines"
-      logo-key="logo_base64"
-      logo-content-type-key="logo_content_type"
+      logo-key="logo_url" 
       :can-delete="true"
       label-singular="macchina"
       label-plural="macchine"
@@ -212,53 +211,53 @@ export default {
 
         if (response.ok) {
           const rawData = await response.json();
-          console.log('Dati API ricevuti per Amministratori (o clienti):', rawData); // Log specifico
-          if (rawData.data && rawData.data.items && rawData.data.items.length > 0) {
-            console.log('Primo item API per Amministratori (o clienti):', rawData.data.items[0]);
-          }
 
           const itemsToMap = rawData.data && rawData.data.items ? rawData.data.items : [];
           totalItems.value = rawData.data && rawData.data.total_items ? rawData.data.total_items : itemsToMap.length;
 
-          const mappedItems = itemsToMap.map(item => {
-            // Mappa i campi in base alla risposta API per gli amministratori
-            // Adatta questa mappatura se la risposta API per gli admin è diversa!
-            const logoBase64 = item.logo_base64 || null; // Se gli admin hanno logo
-            let logoContentType = item.logo_content || null; // Se gli admin hanno logo
-
-            if (logoContentType === 'logo/png') {
-              logoContentType = 'image/png';
-            } else if (logoContentType === 'logo/jpeg' || logoContentType === 'logo/jpg') {
-              logoContentType = 'image/jpeg';
-            }
+          const mappedCustomers = itemsToMap.map(item => {
+            // Non mappiamo più logo_base64 e logo_content_type qui
+            // Mappiamo logo_url che viene dal serializzatore backend
+            const logoUrl = item.logo_url || null; 
 
             return {
-              customer_id: item.id || item.user_id, // Usa 'id' o 'user_id' come chiave univoca per l'admin
-              company_name: item.name || item.username, // Usa 'name' o 'username' come nome visualizzato
-              total_machines: item.active_sessions || 0, // Esempio: numero di sessioni attive per admin
-              logo_base64: logoBase64,
-              logo_content_type: logoContentType,
-              user_custom_name: item.email || 'N/A', // Esempio: email per nome personalizzato
-              expiry_date: item.last_login || 'N/A', // Esempio: ultima data di login
-              // ... altri campi rilevanti per gli amministratori (es. ruolo, permessi)
+              customer_id: item.customer_id,
+              company_name: item.company_name,
+              total_machines: item.total_machines || 0,
+              logo_url: logoUrl, // MODIFICATO QUI: usa logo_url
+              address: item.address || 'N/A',
+              fiscal_data: item.fiscal_data || 'N/A',
+              latitude: item.latitude || 'N/A', 
+              longitude: item.longitude || 'N/A', 
+              email: item.email || 'N/A',
+              vat_number: item.vat_number || 'N/A',
+              fiscal_code: item.fiscal_code || 'N/A',
+              address_latitude: item.address_latitude || '',
+              address_longitude: item.address_longitude || '',
+              logo_name: item.logo_name || null, // logo_name potrebbe ancora essere utile per l'upload
             };
           });
           
           if (append) {
-            customerList.value = [...customerList.value, ...mappedItems];
+            customerList.value = [...customerList.value, ...mappedCustomers];
           } else {
-            customerList.value = mappedItems;
+            customerList.value = mappedCustomers;
           }
-          authStore.saveCustomerListToCache(customerList.value); // Salva la cache
+
+          authStore.saveCustomerListToCache(customerList.value);
+
         } else {
           const errorText = await response.text();
-          console.error('Errore nel caricamento Amministratori (risposta non ok):', response.status, errorText);
-          error.value = `Errore nel caricamento: ${response.status} - ${errorText}`;
-          if (response.status === 401 || response.status === 403) { await authStore.logout(); router.push('/'); }
+          console.error('Errore nel recupero clienti (risposta non ok):', response.status, errorText);
+          error.value = `Errore nel caricamento dei clienti: ${response.status} - ${errorText}`;
+          if (response.status === 401 || response.status === 403) {
+            await authStore.logout();
+            router.push('/');
+          }
         }
       } catch (err) {
-        console.error('Errore di rete o del server (catch) per Amministratori:', err);
-        error.value = 'Impossibile connettersi al server.';
+        console.error('Errore di rete o del server (catch):', err);
+        error.value = 'Impossibile connettersi al server per i dati dei clienti. Controlla che il backend sia attivo e le configurazioni CORS.';
       } finally {
         isLoading.value = false;
       }

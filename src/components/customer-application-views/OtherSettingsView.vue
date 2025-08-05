@@ -4,7 +4,15 @@
       <button @click="$emit('close')" class="close-button">X</button>
       <h3>Impostazioni settaggi particolari locker</h3>
 
-      <div class="input-section">
+      <div v-if="isLoading" class="loading-message">
+        <p>Caricamento impostazioni...</p>
+        <div class="spinner"></div>
+      </div>
+      <div v-else-if="error" class="error-message">
+        <p>Errore durante il caricamento: {{ error }}</p>
+        <button @click="fetchOtherSettings" class="retry-button">Riprova</button>
+      </div>
+      <div v-else class="input-section">
         <!-- Abilita inserimento manuale codice a barre -->
         <div class="input-field-group toggle-group">
           <label for="manualBarcodeInput">Abilita la capacità di abilitare l'inserimento manuale del codice a barre:</label>
@@ -155,12 +163,17 @@
       </div>
 
       <div class="action-buttons">
-        <button @click="saveSettings" class="save-button">Salva</button>
-        <button @click="cancel" class="cancel-button">Annulla</button>
+        <button @click="saveSettings" class="save-button" :disabled="isSaving">
+          {{ isSaving ? 'Salvataggio...' : 'Salva' }}
+        </button>
+        <button @click="cancel" class="cancel-button" :disabled="isSaving">Annulla</button>
+      </div>
+      <div v-if="saveError" class="error-message save-error">
+        <p>Errore durante il salvataggio: {{ saveError }}</p>
       </div>
     </div>
 
-    <!-- Modale di Aiuto (Assumi che questo componente sia già definito altrove nel tuo progetto) -->
+    <!-- Modale di Aiuto -->
     <HelpModal
       v-if="showHelpModal"
       :message="helpMessage"
@@ -169,89 +182,329 @@
   </div>
 </template>
 
-<script>
-// Importa l'icona del punto interrogativo
+<script setup>
+import { ref, onMounted, watch } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+import { useRouter } from 'vue-router';
 import QuestionOctagonIcon from '@/assets/icons/question-octagon.svg';
-// Importa il componente modale di aiuto (assicurati che il percorso sia corretto)
 import HelpModal from '@/components/common/HelpModal.vue';
 
-export default {
-  name: 'OtherSettingView',
-  emits: ['close', 'save'],
-  components: {
-    HelpModal // Registra il componente modale
+// Definisci le props
+const props = defineProps({
+  customerId: {
+    type: Number,
+    required: true
   },
-
-  data() {
-    return {
-      // Espone QuestionOctagonIcon al template
-      QuestionOctagonIcon: QuestionOctagonIcon,
-      // Mappa i nomi dei campi ai loro messaggi di aiuto.
-      helpMessagesMap: {
-        manualBarcodeInput: "Abilita questa opzione per consentire agli utenti di inserire manualmente il codice a barre degli articoli, invece di utilizzare solo la scansione.",
-        adminLoginWithEmail: "Se abilitato, gli amministratori potranno accedere al locker utilizzando le loro credenziali email e password.",
-        allowOtherFaults: "Consenti agli utenti di selezionare l'opzione 'Altri' quando segnalano un guasto sul locker, permettendo una descrizione personalizzata.",
-        itemExpiration: "Imposta un promemoria per la scadenza degli articoli in uso, specificando ore e minuti prima della scadenza.",
-        askAnotherDeposit: "Dopo un deposito, il sistema chiederà agli amministratori se desiderano effettuare un altro deposito immediatamente.",
-        showReopenCellButton: "Mostra un pulsante che consente di riaprire una cella dopo che è stata chiusa, utile per correzioni o dimenticanze.",
-        showChangeCellSizeButton: "Mostra un pulsante che permette di cambiare la dimensione della cella selezionata durante il processo di deposito o ritiro.",
-        enableDefectiveButton: "Abilita un pulsante nella gestione dei beni che permette di contrassegnare un articolo come 'difettoso'.",
-        passwordExpirationDays: "Definisce quanti giorni prima della scadenza della password verrà mostrato un avviso agli amministratori.",
-        enablePasswordExpirationAlert: "Abilita la funzione che avvisa gli amministratori quando la loro password è in scadenza, basandosi sul numero di giorni impostato."
-      },
-      settings: {
-        manualBarcodeInput: false,
-        adminLoginWithEmail: false,
-        allowOtherFaults: false,
-        itemExpirationHours: 0,
-        itemExpirationMinutes: 0,
-        askAnotherDeposit: false,
-        showReopenCellButton: false,
-        showChangeCellSizeButton: false,
-        enableDefectiveButton: false,
-        passwordExpirationDays: 0,
-        enablePasswordExpirationAlert: false,
-      },
-      showHelpModal: false, // Controlla la visibilità della modale di aiuto
-      helpMessage: '',      // Contiene il messaggio da mostrare nella modale
-    };
-  },
-
-  mounted() {
-    // Logga il valore di QuestionOctagonIcon per debug
-    console.log('QuestionOctagonIcon value in mounted:', this.QuestionOctagonIcon);
-  },
-
-  methods: {
-    /**
-     * Mostra la modale di aiuto con il messaggio appropriato per il campo specificato.
-     * @param {string} fieldName - Il nome del campo per cui mostrare l'aiuto.
-     */
-    showHelp(fieldName) {
-      this.helpMessage = this.helpMessagesMap[fieldName] || "Nessuna informazione di aiuto disponibile per questo campo.";
-      this.showHelpModal = true;
-    },
-
-    /**
-     * Metodo chiamato quando l'utente clicca su "Salva".
-     * Emette l'evento 'save' passando tutti i settaggi.
-     */
-    saveSettings() {
-      console.log('Salvataggio impostazioni:', this.settings);
-      this.$emit('save', this.settings);
-      this.$emit('close'); // Chiude la vista dopo il salvataggio
-    },
-
-    /**
-     * Metodo chiamato quando l'utente clicca su "Annulla".
-     * Emette semplicemente l'evento 'close' per chiudere la vista senza salvare.
-     */
-    cancel() {
-      console.log('Operazione annullata.');
-      this.$emit('close');
-    }
+  companyName: {
+    type: String,
+    default: 'Cliente'
   }
-}
+});
+
+// Definisci gli emits
+const emit = defineEmits(['close', 'save']);
+
+const authStore = useAuthStore();
+const router = useRouter();
+
+const isLoading = ref(true);
+const error = ref(null);
+const isSaving = ref(false);
+const saveError = ref(null);
+
+// Mappa interna per memorizzare gli ID delle impostazioni esistenti
+const originalSettingsMap = ref(new Map());
+
+// Stato delle impostazioni del form
+const settings = ref({
+  manualBarcodeInput: false,
+  adminLoginWithEmail: false,
+  allowOtherFaults: false, // Mappato a 'allow_other_faults_input' (ipotetico)
+  itemExpirationHours: 0,
+  itemExpirationMinutes: 0,
+  askAnotherDeposit: false,
+  showReopenCellButton: false,
+  showChangeCellSizeButton: false,
+  enableDefectiveButton: false, // Mappato a 'enable_defective_button_on_asset'
+  passwordExpirationDays: 0,
+  enablePasswordExpirationAlert: false,
+});
+
+// Mappa i nomi dei campi frontend alle chiavi backend
+const backendKeyMap = {
+  manualBarcodeInput: 'show_keyboard_at_barcode_scan',
+  adminLoginWithEmail: 'locker_passcode_login',
+  allowOtherFaults: 'allow_other_faults_input', // Ipotetico: se backend ha chiave diversa per 'Altri guasti'
+  itemExpiration: 'notify_expiring_minutes_before', // Combinato ore/minuti
+  askAnotherDeposit: 'ask_for_another_agent_dropoff',
+  showReopenCellButton: 'enable_button_reopen_cell',
+  showChangeCellSizeButton: 'enable_button_change_cell_size',
+  enableDefectiveButton: 'enable_defective_button_on_asset',
+  passwordExpirationDays: 'password_reminder_days',
+  enablePasswordExpirationAlert: 'enable_password_reminder',
+};
+
+// Mappa i nomi dei campi ai loro messaggi di aiuto.
+const helpMessagesMap = {
+  manualBarcodeInput: "Abilita questa opzione per consentire agli utenti di inserire manualmente il codice a barre degli articoli, invece di utilizzare solo la scansione.",
+  adminLoginWithEmail: "Se abilitato, gli amministratori potranno accedere al locker utilizzando le loro credenziali email e password.",
+  allowOtherFaults: "Consenti agli utenti di selezionare l'opzione 'Altri' quando segnalano un guasto sul locker, permettendo una descrizione personalizzata.",
+  itemExpiration: "Imposta un promemoria per la scadenza degli articoli in uso, specificando ore e minuti prima della scadenza.",
+  askAnotherDeposit: "Dopo un deposito, il sistema chiederà agli amministratori se desiderano effettuare un altro deposito immediatamente.",
+  showReopenCellButton: "Mostra un pulsante che consente di riaprire una cella dopo che è stata chiusa, utile per correzioni o dimenticanze.",
+  showChangeCellSizeButton: "Mostra un pulsante che permette di cambiare la dimensione della cella selezionata durante il processo di deposito o ritiro.",
+  enableDefectiveButton: "Abilita un pulsante nella gestione dei beni che permette di contrassegnare un articolo come 'difettoso'.",
+  passwordExpirationDays: "Definisce quanti giorni prima della scadenza della password verrà mostrato un avviso agli amministratori.",
+  enablePasswordExpirationAlert: "Abilita la funzione che avvisa gli amministratori quando la loro password è in scadenza, basandosi sul numero di giorni impostato."
+};
+
+const showHelpModal = ref(false);
+const helpMessage = ref('');
+
+/**
+ * Funzione per verificare la scadenza del token (riutilizzata da CustomerView)
+ */
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const payloadBase64 = token.split('.')[1];
+    if (!payloadBase64) return true;
+    const decodedPayload = JSON.parse(atob(payloadBase64));
+    const expirationDateString = decodedPayload.expiration_date;
+    if (!expirationDateString) return true;
+    const expirationTime = new Date(expirationDateString);
+    if (isNaN(expirationTime.getTime())) return true;
+    const currentTimeMs = Date.now();
+    const leewayMs = 5 * 60 * 1000; // 5 minuti di tolleranza
+    return expirationTime.getTime() < (currentTimeMs - leewayMs);
+  } catch (e) {
+    console.error('isTokenExpired: Errore durante la decodifica o la verifica del token JWT:', e);
+    return true;
+  }
+};
+
+/**
+ * Recupera le impostazioni "Other Settings" dal backend.
+ */
+const fetchOtherSettings = async () => {
+  isLoading.value = true;
+  error.value = null;
+
+  if (!authStore.isAuthenticated || !authStore.token || isTokenExpired(authStore.token)) {
+    error.value = 'Sessione scaduta o non autenticata. Effettua nuovamente il login.';
+    isLoading.value = false;
+    await authStore.logout();
+    router.push('/');
+    return;
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authStore.token}`,
+    'Language': authStore.selectedLanguage || 'en-EN',
+    'Othersetting': '1', // Header specifico per questa API
+  };
+
+  if (props.companyName) {
+    headers['Customer'] = props.companyName;
+  } else {
+    console.warn('Company name not available for Customer header in OtherSettingsView.');
+  }
+
+  const apiUrl = `http://localhost:8000/api/customer_setting`;
+  
+  // FIX: Genera un array di nomi unici per il filtro direttamente da backendKeyMap
+  const filterNames = Array.from(new Set(Object.values(backendKeyMap)));
+
+  const queryParams = new URLSearchParams({
+    filter: JSON.stringify({"name__in": filterNames})
+  }).toString();
+  
+
+  console.log('Fetching Other Settings from:', `${apiUrl}?${queryParams}`);
+  console.log('Headers:', headers);
+
+  try {
+    const response = await fetch(`${apiUrl}?${queryParams}`, {
+      method: 'GET',
+      headers: headers,
+      mode: 'cors'
+    });
+
+    if (response.ok) {
+      const rawData = await response.json();
+      console.log('Other Settings raw data received:', rawData);
+
+      const settingsArray = rawData.data && rawData.data.items ? rawData.data.items : [];
+      
+      // Pulisci la mappa prima di riempirla
+      originalSettingsMap.value.clear(); 
+
+      // Popola la mappa e i ref del form
+      settingsArray.forEach(setting => {
+        originalSettingsMap.value.set(setting.name, {
+          value: setting.value,
+          id: setting.customer_setting_id
+        });
+      });
+      
+      // Funzione helper per la gestione dei booleani (insensibile alle maiuscole)
+      const isTrue = (value) => {
+        return value && (String(value).toLowerCase() === 'true');
+      };
+
+      // Mappa i valori dal backend ai ref del frontend
+      settings.value.manualBarcodeInput = isTrue(originalSettingsMap.value.get(backendKeyMap.manualBarcodeInput)?.value);
+      settings.value.adminLoginWithEmail = isTrue(originalSettingsMap.value.get(backendKeyMap.adminLoginWithEmail)?.value);
+      settings.value.allowOtherFaults = isTrue(originalSettingsMap.value.get(backendKeyMap.allowOtherFaults)?.value);
+      settings.value.askAnotherDeposit = isTrue(originalSettingsMap.value.get(backendKeyMap.askAnotherDeposit)?.value);
+      settings.value.showReopenCellButton = isTrue(originalSettingsMap.value.get(backendKeyMap.showReopenCellButton)?.value);
+      settings.value.showChangeCellSizeButton = isTrue(originalSettingsMap.value.get(backendKeyMap.showChangeCellSizeButton)?.value);
+      settings.value.enableDefectiveButton = isTrue(originalSettingsMap.value.get(backendKeyMap.enableDefectiveButton)?.value);
+      settings.value.enablePasswordExpirationAlert = isTrue(originalSettingsMap.value.get(backendKeyMap.enablePasswordExpirationAlert)?.value);
+
+      // Gestione di itemExpirationHours e Minutes
+      const totalMinutes = parseInt(originalSettingsMap.value.get(backendKeyMap.itemExpiration)?.value || '0', 10);
+      settings.value.itemExpirationHours = Math.floor(totalMinutes / 60);
+      settings.value.itemExpirationMinutes = totalMinutes % 60;
+
+      // Gestione di passwordExpirationDays
+      settings.value.passwordExpirationDays = parseInt(originalSettingsMap.value.get(backendKeyMap.passwordExpirationDays)?.value || '0', 10);
+
+    } else {
+      const errorText = await response.text();
+      console.error('Error fetching other settings (response not ok):', response.status, errorText);
+      error.value = `Impossibile caricare le impostazioni: ${response.status} - ${errorText}`;
+      if (response.status === 401 || response.status === 403) {
+        await authStore.logout();
+        router.push('/');
+      }
+    }
+  } catch (err) {
+    console.error('Network or server error fetching other settings:', err);
+    error.value = 'Impossibile connettersi al server per le impostazioni.';
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+/**
+ * Salva le impostazioni "Other Settings" nel backend.
+ */
+const saveSettings = async () => {
+  isSaving.value = true;
+  saveError.value = null;
+
+  if (!authStore.isAuthenticated || !authStore.token || isTokenExpired(authStore.token)) {
+    saveError.value = 'Sessione scaduta o non autenticata. Effettua nuovamente il login.';
+    isSaving.value = false;
+    await authStore.logout();
+    router.push('/');
+    return;
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authStore.token}`,
+    'Language': authStore.selectedLanguage || 'en-EN',
+    'Othersetting': '1', // Header specifico per questa API di salvataggio
+  };
+
+  if (props.companyName) {
+    headers['Customer'] = props.companyName;
+  } else {
+    console.warn('Company name not available for Customer header in OtherSettingsView for saving.');
+  }
+
+  const apiUrl = `http://localhost:8000/api/customer_setting`; 
+
+  // Prepara il payload come oggetto flat
+  const payload = {
+    customer_id: props.customerId,
+    Customer: props.companyName,
+    [backendKeyMap.manualBarcodeInput]: settings.value.manualBarcodeInput ? 'true' : 'false',
+    [backendKeyMap.adminLoginWithEmail]: settings.value.adminLoginWithEmail ? 'true' : 'false',
+    [backendKeyMap.allowOtherFaults]: settings.value.allowOtherFaults ? 'true' : 'false', // Mappatura ipotetica
+    [backendKeyMap.askAnotherDeposit]: settings.value.askAnotherDeposit ? 'true' : 'false',
+    [backendKeyMap.showReopenCellButton]: settings.value.showReopenCellButton ? 'true' : 'false',
+    [backendKeyMap.showChangeCellSizeButton]: settings.value.showChangeCellSizeButton ? 'true' : 'false',
+    [backendKeyMap.enableDefectiveButton]: settings.value.enableDefectiveButton ? 'true' : 'false',
+    [backendKeyMap.enablePasswordExpirationAlert]: settings.value.enablePasswordExpirationAlert ? 'true' : 'false',
+    
+    // Combina ore e minuti in minuti totali
+    [backendKeyMap.itemExpiration]: (settings.value.itemExpirationHours * 60 + settings.value.itemExpirationMinutes).toString(),
+    
+    // Invia i giorni come stringa se il backend si aspetta stringhe per tutti i valori
+    [backendKeyMap.passwordExpirationDays]: settings.value.passwordExpirationDays.toString(),
+  };
+
+  console.log('Saving Other Settings to:', apiUrl);
+  console.log('Payload:', payload);
+  console.log('Headers:', headers);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: headers,
+      mode: 'cors',
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      console.log('Other Settings saved successfully!');
+      saveError.value = null;
+      emit('close'); // Chiudi la vista dopo il salvataggio
+    } else {
+      const errorText = await response.text();
+      console.error('Error saving other settings (response not ok):', response.status, errorText);
+      saveError.value = `Impossibile salvare le impostazioni: ${response.status} - ${errorText}`;
+      if (response.status === 401 || response.status === 403) {
+        await authStore.logout();
+        router.push('/');
+      }
+    }
+  } catch (err) {
+    console.error('Network or server error saving other settings:', err);
+    saveError.value = 'Impossibile connettersi al server per salvare le impostazioni.';
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+/**
+ * Metodo chiamato quando l'utente clicca su "Annulla".
+ * Emette semplicemente l'evento 'close' per chiudere la vista senza salvare.
+ */
+const cancel = () => {
+  console.log('Operazione annullata.');
+  emit('close');
+};
+
+// Al montaggio del componente, recupera le impostazioni
+onMounted(() => {
+  if (props.customerId) {
+    fetchOtherSettings();
+  } else {
+    error.value = 'Nessun ID cliente fornito per caricare le impostazioni.';
+    isLoading.value = false;
+  }
+});
+
+// Se il customerId cambia (anche se questa vista di solito è per un cliente specifico)
+watch(() => props.customerId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    fetchOtherSettings();
+  }
+});
+
+/**
+ * Mostra la modale di aiuto con il messaggio appropriato per il campo specificato.
+ * @param {string} fieldName - Il nome del campo per cui mostrare l'aiuto.
+ */
+const showHelp = (fieldName) => {
+  helpMessage.value = helpMessagesMap[fieldName] || "Nessuna informazione di aiuto disponibile per questo campo.";
+  showHelpModal.value = true;
+};
 </script>
 
 <style scoped>
@@ -306,6 +559,57 @@ h3 {
   margin-bottom: 10px;
   font-size: 1.8em;
   text-align: center; /* Centrato */
+}
+
+.loading-message, .error-message {
+  text-align: center;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.loading-message {
+  background-color: #e0f0ff;
+  color: #0056b3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-left-color: #007bff;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-message {
+  background-color: #ffe0e0;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+}
+
+.retry-button {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.retry-button:hover {
+  background-color: #0056b3;
 }
 
 .input-section {

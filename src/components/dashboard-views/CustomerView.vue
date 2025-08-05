@@ -6,8 +6,7 @@
       item-key="customer_id"
       display-key="company_name"
       machine-count-key="total_machines"
-      logo-key="logo_base64"
-      logo-content-type-key="logo_content_type"
+      logo-key="logo_url" 
       :can-delete="true"
       label-singular="macchina"
       label-plural="macchine"
@@ -144,8 +143,8 @@
               @drop="handleFileDrop"
               @click="triggerFileInput"
             >
-              <template v-if="displayLogo && displayLogoType">
-                <img :src="`data:${displayLogoType};base64, ${displayLogo}`" class="current-logo" alt="Customer Logo"/>
+              <template v-if="selectedCustomer.logo_url"> 
+                <img :src="selectedCustomer.logo_url" class="current-logo" alt="Customer Logo"/> 
                 <button @click.stop="clearLogo" class="clear-logo-button">X</button>
               </template>
               <template v-else>
@@ -177,7 +176,7 @@
             <button class="action-button" @click="openApplication('DefectListView')">Elenco difetti</button>
             <button class="action-button" @click="openApplication('LanguageSelectionView')">Selezione lingua</button>
             <button class="action-button" @click="openApplication('EmailTemplateMessagesView')">Messaggi email template</button>
-            <button class="action-button" @click="openApplication('PasswordSettingsView')">Password settings</button>
+            <!-- <button class="action-button" @click="openApplication('PasswordSettingsView')">Password settings</button> -->
           </div>
         </div>
       </div>
@@ -227,7 +226,7 @@ import CustomerSettingsView from '@/components/customer-application-views/Custom
 import DefectListView from '@/components/customer-application-views/DefectListView.vue';
 import LanguageSelectionView from '@/components/customer-application-views/LanguageSelectionView.vue';
 import EmailTemplateMessagesView from '@/components/customer-application-views/EmailTemplateMessagesView.vue';
-import PasswordSettingsView from '@/components/customer-application-views/PasswordSettingsView.vue';
+// import PasswordSettingsView from '@/components/customer-application-views/PasswordSettingsView.vue';
 import ValidationLegend from '@/components/ValidationLegend.vue'; // Importa il componente leggenda con percorso corretto
 
 // Importa le regex dal file utils
@@ -250,7 +249,7 @@ export default {
     DefectListView,
     LanguageSelectionView,
     EmailTemplateMessagesView,
-    PasswordSettingsView,
+    // PasswordSettingsView,
     ValidationLegend, // Registra il componente leggenda
   },
   setup() {
@@ -269,8 +268,9 @@ export default {
 
     // Refs for logo handling
     const fileInputRef = ref(null);
-    const displayLogo = ref(null);
-    const displayLogoType = ref(null);
+    // displayLogo e displayLogoType non sono più necessari per la visualizzazione diretta
+    // const displayLogo = ref(null);
+    // const displayLogoType = ref(null);
 
     // Stato per la gestione delle finestre delle applicazioni
     const currentApplicationComponent = shallowRef(null); // Usa shallowRef per i componenti dinamici
@@ -306,7 +306,7 @@ export default {
         }
 
         const currentTimeMs = Date.now();
-        const leewayMs = 5 * 60 * 1000;
+        const leewayMs = 5 * 60 * 1000; // 5 minuti di tolleranza
 
         if (expirationTime.getTime() < (currentTimeMs - leewayMs)) {
           console.warn('Il token JWT è scaduto (o sta per scadere, con tolleranza).');
@@ -412,21 +412,15 @@ export default {
           totalItems.value = rawData.data && rawData.data.total_items ? rawData.data.total_items : itemsToMap.length;
 
           const mappedCustomers = itemsToMap.map(item => {
-            const logoBase64 = item.logo_base64 || null;
-            let logoContentType = item.logo_content || null;
-            
-            if (logoContentType === 'logo/png') {
-              logoContentType = 'image/png';
-            } else if (logoContentType === 'logo/jpeg' || logoContentType === 'logo/jpg') {
-              logoContentType = 'image/jpeg';
-            }
+            // Non mappiamo più logo_base64 e logo_content_type qui
+            // Mappiamo logo_url che viene dal serializzatore backend
+            const logoUrl = item.logo_url || null; 
 
             return {
               customer_id: item.customer_id,
               company_name: item.company_name,
               total_machines: item.total_machines || 0,
-              logo_base64: logoBase64,
-              logo_content_type: logoContentType,
+              logo_url: logoUrl, // MODIFICATO QUI: usa logo_url
               address: item.address || 'N/A',
               fiscal_data: item.fiscal_data || 'N/A',
               latitude: item.latitude || 'N/A', 
@@ -436,7 +430,7 @@ export default {
               fiscal_code: item.fiscal_code || 'N/A',
               address_latitude: item.address_latitude || '',
               address_longitude: item.address_longitude || '',
-              logo_name: item.logo_name || null,
+              logo_name: item.logo_name || null, // logo_name potrebbe ancora essere utile per l'upload
             };
           });
           
@@ -485,17 +479,11 @@ export default {
         "EditData": "1",
       };
 
-      // Aggiungi l'header 'Customer' qui per la richiesta di dettaglio singolo
-      // Questo header dovrebbe riflettere il cliente attualmente selezionato o l'utente che agisce
-      // Per il dettaglio singolo, potrebbe non essere strettamente necessario se l'API lo gestisce via PK
-      // Ma se il backend ha bisogno di sapere quale "tenant" sta facendo la richiesta, è utile.
       if (authStore.user && authStore.user.is_superuser === true) {
-        headers['Customer'] = ''; // Superuser può vedere tutti
+        headers['Customer'] = '';
       } else if (authStore.user && authStore.user.company_name) {
-        headers['Customer'] = authStore.user.company_name; // Utente normale agisce per la sua azienda
+        headers['Customer'] = authStore.user.company_name;
       } else if (selectedCustomer.value?.company_name) {
-        // Fallback: se un cliente è già selezionato, usa il suo company_name
-        // Questo è un caso limite, di solito l'utente che agisce è il riferimento
         headers['Customer'] = selectedCustomer.value.company_name;
       } else {
         console.warn('user.is_superuser o user.company_name non disponibili per l\'header Customer per fetchCustomerDetails.');
@@ -519,21 +507,15 @@ export default {
 
           const item = rawData; 
           
-          let logoBase64 = item.logo_base64 || null;
-          let logoContentType = item.logo_content || null;
-
-          if (logoContentType === 'logo/png') {
-            logoContentType = 'image/png';
-          } else if (logoContentType === 'logo/jpeg' || logoContentType === 'logo/jpg') {
-            logoContentType = 'image/jpeg';
-          }
+          // Non mappiamo più logo_base64 e logo_content_type per la visualizzazione
+          // Mappiamo logo_url se presente
+          const logoUrl = item.logo_url || null; 
 
           selectedCustomer.value = {
             customer_id: item.customer_id,
-            company_name: item.company_name, // Questo è il valore chiave che vogliamo passare
+            company_name: item.company_name,
             total_machines: item.total_machines || 0,
-            logo_base64: logoBase64,
-            logo_content_type: logoContentType,
+            logo_url: logoUrl, // MODIFICATO QUI: usa logo_url
             address: item.address || 'N/A',
             fiscal_data: item.fiscal_data || 'N/A',
             latitude: item.latitude || 'N/A', 
@@ -543,11 +525,12 @@ export default {
             fiscal_code: item.fiscal_code || '',
             address_latitude: item.address_latitude || '',
             address_longitude: item.address_longitude || '',
-            logo_name: item.logo_name || null,
+            logo_name: item.logo_name || null, // Manteniamo logo_name per l'upload
           };
           
-          displayLogo.value = selectedCustomer.value.logo_base64;
-          displayLogoType.value = selectedCustomer.value.logo_content_type;
+          // displayLogo e displayLogoType non sono più necessari per la visualizzazione diretta
+          // displayLogo.value = selectedCustomer.value.logo_base64;
+          // displayLogoType.value = selectedCustomer.value.logo_content_type;
 
         } else {
           const errorText = await response.text();
@@ -606,12 +589,13 @@ export default {
     const handleCustomerSelected = async (item) => {
       if (!item) {
         selectedCustomer.value = null;
-        displayLogo.value = null;
-        displayLogoType.value = null;
+        // displayLogo.value = null; // Non più necessario per visualizzazione diretta
+        // displayLogoType.value = null; // Non più necessario per visualizzazione diretta
         console.log('Cliente deselezionato dalla sidebar.');
         return;
       }
       console.log('Cliente selezionato dalla sidebar, recupero dettagli completi per ID:', item.customer_id);
+      console.log('Logo URL ricevuto per il cliente selezionato:', item.logo_url); // Log added here
       await fetchCustomerDetails(item.customer_id);
     };
 
@@ -619,6 +603,7 @@ export default {
       if (!selectedCustomer.value) return;
 
       console.log('Salvataggio modifiche per cliente:', selectedCustomer.value);
+      // La logica di upload del logo rimane invariata se usi Base64 per l'upload
       console.log('Nuovi dati logo da salvare:', {
         logo_name: selectedCustomer.value.logo_name,
         logo_base64: selectedCustomer.value.logo_base64 ? selectedCustomer.value.logo_base64.substring(0, 30) + '...' : null,
@@ -628,6 +613,7 @@ export default {
       console.log('Modifiche simulate salvate!');
       const index = customerList.value.findIndex(c => c.customer_id === selectedCustomer.value.customer_id);
       if (index !== -1) {
+        // Aggiorna l'elemento nella lista con i nuovi dati, inclusi logo_url se modificato
         customerList.value[index] = { ...selectedCustomer.value };
         authStore.saveCustomerListToCache(customerList.value);
       }
@@ -646,19 +632,20 @@ export default {
         address_latitude: '',
         address_longitude: '',
         total_machines: 0,
-        logo_base64: null,
-        logo_content_type: null,
+        logo_url: null, // MODIFICATO QUI: usa logo_url
         logo_name: null,
+        logo_base64: null, // Mantenuto per l'upload
+        logo_content_type: null, // Mantenuto per l'upload
       };
-      displayLogo.value = null;
-      displayLogoType.value = null;
+      // displayLogo.value = null; // Non più necessario
+      // displayLogoType.value = null; // Non più necessario
       console.log('Logica per aggiungere un nuovo cliente non implementata. Form vuoto caricato.');
     };
 
     const exitCustomerDetails = () => {
       selectedCustomer.value = null;
-      displayLogo.value = null;
-      displayLogoType.value = null;
+      // displayLogo.value = null; // Non più necessario
+      // displayLogoType.value = null; // Non più necessario
       console.log('Uscito dalla visualizzazione dettagliata del cliente.');
     };
 
@@ -667,8 +654,8 @@ export default {
       customerList.value = customerList.value.filter(cust => cust.customer_id !== itemId);
       if (selectedCustomer.value && selectedCustomer.value.customer_id === itemId) {
         selectedCustomer.value = null;
-        displayLogo.value = null;
-        displayLogoType.value = null;
+        // displayLogo.value = null; // Non più necessario
+        // displayLogoType.value = null; // Non più necessario
       }
       totalItems.value--;
       authStore.saveCustomerListToCache(customerList.value);
@@ -706,8 +693,9 @@ export default {
         selectedCustomer.value.logo_content_type = file.type;
         selectedCustomer.value.logo_name = file.name;
 
-        displayLogo.value = base64String;
-        displayLogoType.value = file.type;
+        // Dopo l'upload, potresti voler aggiornare logo_url per la visualizzazione immediata
+        // Questo è un placeholder, l'URL reale verrebbe dal backend dopo un salvataggio
+        selectedCustomer.value.logo_url = `data:${file.type};base64,${base64String}`; 
       };
       reader.readAsDataURL(file);
     };
@@ -717,20 +705,23 @@ export default {
         selectedCustomer.value.logo_base64 = null;
         selectedCustomer.value.logo_content_type = null;
         selectedCustomer.value.logo_name = null;
+        selectedCustomer.value.logo_url = null; // MODIFICATO QUI: pulisci anche logo_url
       }
-      displayLogo.value = null;
-      displayLogoType.value = null;
+      // displayLogo.value = null; // Non più necessario
+      // displayLogoType.value = null; // Non più necessario
       if (fileInputRef.value) {
         fileInputRef.value.value = '';
       }
     };
 
-    watch(() => selectedCustomer.value?.logo_base64, (newLogoBase64) => {
-      if (selectedCustomer.value) {
-        displayLogo.value = newLogoBase64;
-        displayLogoType.value = selectedCustomer.value.logo_content_type;
-      }
-    });
+    // Questo watcher non è più strettamente necessario per la visualizzazione diretta del logo,
+    // ma può essere mantenuto se displayLogo/displayLogoType sono usati altrove.
+    // watch(() => selectedCustomer.value?.logo_base64, (newLogoBase64) => {
+    //   if (selectedCustomer.value) {
+    //     displayLogo.value = newLogoBase64;
+    //     displayLogoType.value = selectedCustomer.value.logo_content_type;
+    //   }
+    // });
 
     // --- LOGICA DI APERTURA/CHIUSURA APPLICAZIONI ---
     // Mappa i nomi dei componenti a stringhe per l'uso con shallowRef
@@ -742,7 +733,7 @@ export default {
       DefectListView,
       LanguageSelectionView,
       EmailTemplateMessagesView,
-      PasswordSettingsView,
+      //PasswordSettingsView,
     };
 
     const openApplication = (componentName) => {
@@ -750,7 +741,7 @@ export default {
         currentApplicationComponent.value = appComponentsMap[componentName];
         // Prepara le props comuni per tutti i componenti, se un cliente è selezionato
         if (selectedCustomer.value && selectedCustomer.value.company_name) {
-          currentApplicationProps.value = { companyName: selectedCustomer.value.company_name };
+          currentApplicationProps.value = { companyName: selectedCustomer.value.company_name, customerId: selectedCustomer.value.customer_id };
           console.log(`Passando companyName a ${componentName}: ${selectedCustomer.value.company_name}`);
         } else {
           currentApplicationProps.value = {}; // Assicurati che non ci siano props residue se nessun cliente è selezionato
@@ -785,8 +776,8 @@ export default {
       addNewCustomer,
       exitCustomerDetails,
       fileInputRef,
-      displayLogo,
-      displayLogoType,
+      // displayLogo, // Non più esposto per visualizzazione diretta
+      // displayLogoType, // Non più esposto per visualizzazione diretta
       triggerFileInput,
       handleFileDrop,
       handleFileSelect,
@@ -797,7 +788,7 @@ export default {
       showApplicationOverlay,
       openApplication,
       closeApplication,
-      currentApplicationProps, // <--- Modifica qui: Esporre currentApplicationProps
+      currentApplicationProps, 
       // Esporre le computed per la validazione
       getValidationClass,
       isCompanyNameValid,

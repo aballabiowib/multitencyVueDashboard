@@ -7,8 +7,7 @@
       item-key="customer_id"
       display-key="company_name"
       machine-count-key="total_machines"
-      logo-key="logo_base64"
-      logo-content-type-key="logo_content_type"
+      logo-key="logo_url" 
       :can-delete="false"
       label-singular="cliente"
       label-plural="clienti"
@@ -82,6 +81,8 @@
                   <th>Attiva</th>
                   <th>Online</th>
                   <th>Allarmi</th>
+                  <th>SW</th>
+                  <th>HW</th>
                   <th>Azioni</th>
                 </tr>
               </thead>
@@ -91,9 +92,23 @@
                   <td>{{ machine.serial_number }}</td>
                   <td>{{ machine.machine_name }}</td>
                   <td>{{ machine.description }}</td>
-                  <td>{{ machine.is_active ? 'Sì' : 'No' }}</td>
-                  <td>{{ machine.is_online ? 'Sì' : 'No' }}</td>
-                  <td>{{ machine.has_alarms ? 'Sì' : 'No' }}</td>
+                  <td>
+                    <span :class="{'status-active': machine.is_active, 'status-inactive': !machine.is_active}">
+                      {{ machine.is_active ? 'Sì' : 'No' }}
+                    </span>
+                  </td>
+                  <td>
+                    <span :class="{'status-active': machine.is_online, 'status-inactive': !machine.is_online}">
+                      {{ machine.is_online ? 'Sì' : 'No' }}
+                    </span>
+                  </td>
+                  <td>
+                    <span :class="{'status-active': machine.has_alarms, 'status-inactive': !machine.has_alarms}">
+                      {{ machine.has_alarms ? 'Sì' : 'No' }}
+                    </span>
+                  </td>
+                  <td>{{ machine.sw_type ? machine.sw_type : '' }}</td>
+                  <td>{{ machine.hw_type ? machine.hw_type : '' }}</td>
                   <td>
                     <!-- Pulsante "Visualizza" sostituito con icona Gear -->
                     <button @click="goToMachineSection(machine.machine_id)" class="action-button icon-button" title="Visualizza">
@@ -299,33 +314,63 @@ export default {
       if (queryParams.toString()) { apiUrl += `?${queryParams.toString()}`; }
 
       try {
-        const response = await fetch(apiUrl, { method: 'GET', headers: headers });
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: headers,
+        });
+
         if (response.ok) {
           const rawData = await response.json();
-          const itemsToMap = rawData.data && rawData.data.items ? rawData.data.items : [];
-          totalCustomersItems.value = rawData.data && rawData.data.total_items ? rawData.data.total_items : itemsToMap.length;
 
-          const mappedItems = itemsToMap.map(item => {
-            const logoBase64 = item.logo_base64 || null;
-            let logoContentType = item.logo_content || null;
-            if (logoContentType === 'logo/png') { logoContentType = 'image/png'; }
-            else if (logoContentType === 'logo/jpeg' || logoContentType === 'logo/jpg') { logoContentType = 'image/jpeg'; }
+          const itemsToMap = rawData.data && rawData.data.items ? rawData.data.items : [];
+          totalItems.value = rawData.data && rawData.data.total_items ? rawData.data.total_items : itemsToMap.length;
+
+          const mappedCustomers = itemsToMap.map(item => {
+            // Non mappiamo più logo_base64 e logo_content_type qui
+            // Mappiamo logo_url che viene dal serializzatore backend
+            const logoUrl = item.logo_url || null; 
+
             return {
-              customer_id: item.customer_id, company_name: item.company_name, total_machines: item.total_machines || 0,
-              logo_base64: logoBase64, logo_content_type: logoContentType,
-              user_custom_name: item.user_custom_name || 'N/A', expiry_date: item.expiry_date || 'N/A',
-              address: item.address || 'N/A', fiscal_data: item.fiscal_data || 'N/A',
-              latitude: item.latitude || 'N/A', longitude: item.longitude || 'N/A',
+              customer_id: item.customer_id,
+              company_name: item.company_name,
+              total_machines: item.total_machines || 0,
+              logo_url: logoUrl, // MODIFICATO QUI: usa logo_url
+              address: item.address || 'N/A',
+              fiscal_data: item.fiscal_data || 'N/A',
+              latitude: item.latitude || 'N/A', 
+              longitude: item.longitude || 'N/A', 
+              email: item.email || 'N/A',
+              vat_number: item.vat_number || 'N/A',
+              fiscal_code: item.fiscal_code || 'N/A',
+              address_latitude: item.address_latitude || '',
+              address_longitude: item.address_longitude || '',
+              logo_name: item.logo_name || null, // logo_name potrebbe ancora essere utile per l'upload
             };
           });
           
-          if (append) { customerList.value = [...customerList.value, ...mappedItems]; } else { customerList.value = mappedItems; }
+          if (append) {
+            customerList.value = [...customerList.value, ...mappedCustomers];
+          } else {
+            customerList.value = mappedCustomers;
+          }
+
           authStore.saveCustomerListToCache(customerList.value);
+
         } else {
-          const errorText = await response.text(); errorCustomers.value = `Errore nel caricamento clienti: ${response.status} - ${errorText}`;
-          if (response.status === 401 || response.status === 403) { await authStore.logout(); router.push('/'); }
+          const errorText = await response.text();
+          console.error('Errore nel recupero clienti (risposta non ok):', response.status, errorText);
+          error.value = `Errore nel caricamento dei clienti: ${response.status} - ${errorText}`;
+          if (response.status === 401 || response.status === 403) {
+            await authStore.logout();
+            router.push('/');
+          }
         }
-      } catch (err) { errorCustomers.value = 'Impossibile connettersi al server per i dati dei clienti.'; } finally { isLoadingCustomers.value = false; }
+      } catch (err) {
+        console.error('Errore di rete o del server (catch):', err);
+        error.value = 'Impossibile connettersi al server per i dati dei clienti. Controlla che il backend sia attivo e le configurazioni CORS.';
+      } finally {
+        isLoading.value = false;
+      }
     };
 
     // --- Funzione per recuperare la lista delle MACCHINE ---
@@ -358,21 +403,33 @@ export default {
         console.warn('user.is_superuser o user.company_name non disponibili per l\'header Customer.');
       }
 
-      if (customerId !== null) {
-        headers['Customerid'] = customerId.toString();
-      } else if (authStore.user && authStore.user.is_superuser === true) {
-        headers['Customerid'] = '0';
-      } else {
-        isLoadingMachines.value = false;
-        errorMachines.value = 'Seleziona un cliente per visualizzare le macchine.';
-        return;
-      }
+      // Rimuovi l'header Customerid se il filtro è gestito via query param 'filter'
+      // if (customerId !== null) {
+      //   headers['Customerid'] = customerId.toString();
+      // } else if (authStore.user && authStore.user.is_superuser === true) {
+      //   headers['Customerid'] = '0';
+      // } else {
+      //   isLoadingMachines.value = false;
+      //   errorMachines.value = 'Seleziona un cliente per visualizzare le macchine.';
+      //   return;
+      // }
       
       const queryParams = new URLSearchParams();
       queryParams.append('sort_by', orderBy);
       queryParams.append('order_dir', orderDir);
       queryParams.append('page', pageToLoad.toString());
       queryParams.append('page_size', pageSize.toString());
+
+      // *** MODIFICA: Aggiungi il filtro per customer_id ***
+      const filters = {};
+      if (customerId !== null) {
+        filters.customer_id = customerId;
+      }
+      // Se ci sono filtri, aggiungili come stringa JSON al parametro 'filter'
+      if (Object.keys(filters).length > 0) {
+        queryParams.append('filter', JSON.stringify(filters));
+      }
+      // *** FINE MODIFICA ***
 
       let apiUrl = 'http://localhost:8000/api/machine';
 
@@ -400,6 +457,8 @@ export default {
             is_active: !item.is_deleted || false,
             is_online: item.is_online || false,
             has_alarms: item.alarm || false,
+            sw_type: item.sw_type || '',
+            hw_type: item.hw_type || '',
           }));
           
           machineList.value = mappedItems;
@@ -952,6 +1011,26 @@ export default {
   color: #555;
   padding: 0 5px;
 }
+
+.status-active {
+  background-color: #a0fba0; /* Verde chiaro */
+  color: black; /*#28a745;*/ /* Verde scuro */
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block; /* Per applicare padding e background correttamente */
+}
+
+
+.status-inactive {
+  background-color: #fcbebe; /* Rosso chiaro */
+  color: black; /*#dc3545;*/ /* Rosso scuro */
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block; /* Per applicare padding e background correttamente */
+}
+
 
 @media (max-width: 900px) {
   .selected-customer-details-layout {

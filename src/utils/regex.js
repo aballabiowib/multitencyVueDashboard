@@ -26,6 +26,10 @@ export const usernameRegex = emailRegex;
 // Regex per il titolo dell'email: lettere maiuscole/minuscole, numeri, spazi, trattini, underscore, punti
 export const titleRegex = /^[a-zA-Z0-9\s\-_.]*$/;
 
+// Nuova regex specifica per l'oggetto della mail che gestisce il simbolo '$'
+export const titleObjectEmail = /^[a-zA-Z0-9_$-.\s]+$/;
+
+
 // Regex per uno o più indirizzi email validi, separati da virgola (con spazi opzionali)
 // Esempio: "test@example.com, another.user@domain.net"
 export const multipleEmailsRegex = /^([^\s@]+@[^\s@]+\.[^\s@]+)(\s*,\s*[^\s@]+@[^\s@]+\.[^\s@]+)*$/;

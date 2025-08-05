@@ -24,7 +24,12 @@
             <label for="locationId">ID Località:</label>
             <input type="text" id="locationId" v-model="newSetting.locationId" placeholder="Es. LOC001">
           </div>
-          <button @click="addSetting" class="add-button">Aggiungi</button>
+          <button @click="addSetting" class="add-button" :disabled="isAdding">
+            {{ isAdding ? 'Aggiunta...' : 'Aggiungi' }}
+          </button>
+        </div>
+        <div v-if="addError" class="error-message add-error">
+          <p>Errore durante l'aggiunta: {{ addError }}</p>
         </div>
       </div>
 
@@ -59,7 +64,7 @@
                   <button @click="editSetting(setting)" class="action-icon-button edit-button" title="Modifica">
                     <img :src="EditingIcon" class="icon-svg" alt="Modifica" />
                   </button>
-                  <button @click="deleteSetting(setting.customer_settings_id)" class="action-icon-button delete-button" title="Elimina">
+                  <button @click="deleteSetting(setting)" class="action-icon-button delete-button" title="Elimina">
                     <img :src="TrashIcon" class="icon-svg" alt="Elimina" />
                   </button>
                 </td>
@@ -78,6 +83,58 @@
 
       <div class="action-buttons">
         <button @click="cancel" class="cancel-button">Annulla</button>
+      </div>
+    </div>
+
+    <!-- Modale per la modifica -->
+    <div v-if="isEditing" class="modal-overlay">
+      <div class="modal-content">
+        <h4>Modifica impostazione</h4>
+        <div class="input-row modal-input-row">
+          <div class="input-field-group param-name-field">
+            <label for="editParamName">Nome parametro:</label>
+            <input type="text" id="editParamName" v-model="currentEditingSetting.name">
+          </div>
+          <div class="input-field-group param-value-field">
+            <label for="editParamValue">Valore parametro:</label>
+            <input type="text" id="editParamValue" v-model="currentEditingSetting.value">
+          </div>
+          <div class="input-field-group id-field">
+            <label for="editMachineId">ID Macchina:</label>
+            <input type="text" id="editMachineId" v-model="currentEditingSetting.machine_id">
+          </div>
+          <div class="input-field-group id-field">
+            <label for="editLocationId">ID Località:</label>
+            <input type="text" id="editLocationId" v-model="currentEditingSetting.location_id">
+          </div>
+        </div>
+        <!-- Legenda di Validazione sotto il form di modifica -->
+        <ValidationLegend class="modal-validation-legend"/>
+
+        <div class="modal-actions">
+          <button @click="saveEditedSetting" class="save-button" :disabled="isSaving">
+            {{ isSaving ? 'Salvataggio...' : 'Salva modifiche' }}
+          </button>
+          <button @click="isEditing = false" class="cancel-button" :disabled="isSaving">Annulla</button>
+        </div>
+        <div v-if="saveError" class="error-message save-error">
+          <p>Errore durante il salvataggio: {{ saveError }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nuova Modale di conferma eliminazione -->
+    <div v-if="isDeleting" class="delete-modal-overlay">
+      <div class="delete-modal-content">
+        <h4 class="delete-title">ATTENZIONE!</h4>
+        <p class="delete-message">Sei sicuro di voler eliminare questo parametro?</p>
+        <p class="delete-item">**{{ settingToDelete.name }}**</p>
+        <div class="delete-modal-actions">
+          <button @click="confirmDelete" class="delete-confirm-button" :disabled="isSaving">
+            {{ isSaving ? 'Cancellazione...' : 'Conferma cancellazione' }}
+          </button>
+          <button @click="isDeleting = false" class="cancel-button" :disabled="isSaving">Annulla</button>
+        </div>
       </div>
     </div>
   </div>
@@ -114,6 +171,8 @@ export default {
         machineId: '',
         locationId: '',
       },
+      addError: null,
+      isAdding: false,
       allCustomerSettings: [], // Contiene i dati della pagina corrente dall'API
       currentPage: 1,
       itemsPerPage: 10, // Questo potrebbe essere dinamico dalla tua API se supportato
@@ -121,6 +180,16 @@ export default {
       totalPages: 1, // Inizializzato a 1, sarà aggiornato dall'API
       isLoading: false,
       error: null,
+      
+      // Stati per la modifica
+      isEditing: false,
+      currentEditingSetting: null,
+      isSaving: false,
+      saveError: null,
+
+      // Stati per la cancellazione
+      isDeleting: false,
+      settingToDelete: null,
     };
   },
 
@@ -313,70 +382,84 @@ export default {
     },
 
     /**
-     * Aggiunge una nuova impostazione (simulato).
-     * In un'applicazione reale, qui faresti una fetch() o axios.post() per aggiungere il record.
-     * Dopo l'aggiunta, dovresti richiamare `fetchCustomerSettings()` per aggiornare la tabella.
+     * Aggiunge una nuova impostazione tramite una richiesta POST all'API.
      */
     async addSetting() {
-      if (this.newSetting.parameterName && this.newSetting.parameterValue) {
-        // Controllo del token prima di ogni chiamata API
-        if (!this.authStore.isAuthenticated || !this.authStore.token || this.isTokenExpired(this.authStore.token)) {
-          this.error = 'Sessione scaduta o non autenticata. Impossibile aggiungere l\'impostazione.';
-          this.isLoading = false;
-          console.error('Errore: Tentativo di aggiungere impostazione con token mancante o scaduto.');
-          await this.authStore.logout(); // Esegue il logout tramite lo store
-          this.$router.push('/'); // Reindirizza al login
-          return;
+      // Svuota l'errore precedente
+      this.addError = null;
+
+      // Semplice validazione dei campi obbligatori
+      if (!this.newSetting.parameterName || !this.newSetting.parameterValue) {
+        this.addError = 'Nome parametro e Valore parametro sono obbligatori.';
+        return;
+      }
+
+      this.isAdding = true;
+
+      // Controllo del token prima di ogni chiamata API
+      if (!this.authStore.isAuthenticated || !this.authStore.token || this.isTokenExpired(this.authStore.token)) {
+        this.addError = 'Sessione scaduta o non autenticata. Impossibile aggiungere l\'impostazione.';
+        this.isAdding = false;
+        await this.authStore.logout();
+        this.$router.push('/');
+        return;
+      }
+
+      // Controllo se companyName è stato fornito
+      if (!this.companyName) {
+        this.addError = 'Impossibile aggiungere l\'impostazione: Nessun cliente selezionato.';
+        this.isAdding = false;
+        return;
+      }
+
+      try {
+        const apiUrl = 'http://localhost:8000/api/customer_setting';
+
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.authStore.token}`,
+          'Language': this.authStore.selectedLanguage || 'en-EN',
+          'Customer': this.companyName,
+        };
+
+        const payload = {
+          name: this.newSetting.parameterName,
+          value: this.newSetting.parameterValue,
+          machine_id: this.newSetting.machineId || null,
+          location_id: this.newSetting.locationId || null,
+        };
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: headers,
+          mode: 'cors',
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Errore sconosciuto' }));
+          throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || response.statusText}`);
         }
 
-        console.log('Nuova impostazione da aggiungere:', this.newSetting);
-        // Simula l'invio all'API
-        this.isLoading = true;
-        this.error = null;
-        try {
-          // Esempio di chiamata POST (da adattare alla tua API)
-          /*
-          const response = await fetch('http://localhost:8000/api/customer_setting', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Datatable': '1',
-              'Customer': this.companyName, // Aggiunto l'header 'Customer' anche per la POST
-              'Authorization': `Bearer ${this.authStore.token}`, // Aggiunto l'header di autorizzazione
-              'Language': this.authStore.selectedLanguage || 'en-EN', // Aggiunto l'header Language
-            },
-            body: JSON.stringify(this.newSetting)
-          });
+        const result = await response.json();
+        console.log('Impostazione aggiunta con successo:', result);
+        
+        // Pulisci i campi del form dopo l'aggiunta
+        this.newSetting = {
+          parameterName: '',
+          parameterValue: '',
+          machineId: '',
+          locationId: '',
+        };
 
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Errore sconosciuto' }));
-            throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || response.statusText}`);
-          }
+        // Ricarica i dati per aggiornare la tabella
+        this.fetchCustomerSettings();
 
-          const result = await response.json();
-          console.log('Impostazione aggiunta con successo:', result);
-          */
-
-          // Per la demo, aggiungiamo direttamente ai dati e ricarichiamo
-          await new Promise(resolve => setTimeout(resolve, 500)); // Simula un ritardo
-          // Dopo aver aggiunto con successo, ricarica i dati per vedere l'aggiornamento
-          this.newSetting = {
-            parameterName: '',
-            parameterValue: '',
-            machineId: '',
-            locationId: '',
-          };
-          this.currentPage = 1; // Torna alla prima pagina per vedere il nuovo record
-          this.fetchCustomerSettings();
-
-        } catch (e) {
-          console.error('Errore durante l\'aggiunta:', e);
-          this.error = `Impossibile aggiungere l'impostazione: ${e.message}.`;
-        } finally {
-          this.isLoading = false;
-        }
-      } else {
-        alert('Nome parametro e Valore parametro sono obbligatori.');
+      } catch (e) {
+        console.error('Errore durante l\'aggiunta:', e);
+        this.addError = `Impossibile aggiungere l'impostazione: ${e.message}.`;
+      } finally {
+        this.isAdding = false;
       }
     },
 
@@ -384,49 +467,134 @@ export default {
      * Gestisce la modifica di un'impostazione.
      * @param {Object} setting - L'oggetto impostazione da modificare.
      */
-    editSetting(setting) {
-      console.log('Modifica impostazione:', setting);
-      // Implementa qui la logica per aprire un form di modifica
-      // e pre-popolarlo con i dati di 'setting'.
+    async editSetting(setting) {
+      // Imposta il record da modificare e abilita la modale
+      this.currentEditingSetting = { ...setting };
+      this.isEditing = true;
+      this.saveError = null; // Resetta l'errore di salvataggio
     },
 
     /**
-     * Gestisce l'eliminazione di un'impostazione.
-     * @param {string|number} id - L'ID dell'impostazione da eliminare.
+     * Salva le modifiche di un'impostazione esistente.
      */
-    deleteSetting(id) {
-      console.log('Elimina impostazione con ID:', id);
-      // Implementa qui la logica per la chiamata API DELETE.
-      // Dopo l'eliminazione, ricarica i dati: this.fetchCustomerSettings();
-      if (confirm(`Sei sicuro di voler eliminare l'impostazione con ID: ${id}?`)) {
-        // Simula l'eliminazione
-        this.allCustomerSettings = this.allCustomerSettings.filter(s => s.customer_settings_id !== id);
-        this.totalItems--;
-        console.log('Impostazione eliminata (simulato).');
-        // In una vera app:
-        /*
-        fetch(`http://localhost:8000/api/customer_setting/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${this.authStore.token}`,
-            'Customer': this.companyName,
-            'Language': this.authStore.selectedLanguage || 'en-EN',
-          }
-        })
-        .then(response => {
-          if (response.ok) {
-            console.log('Impostazione eliminata con successo.');
-            this.fetchCustomerSettings(); // Ricarica i dati
-          } else {
-            return response.json().then(err => { throw new Error(err.message || 'Errore durante l\'eliminazione'); });
-          }
-        })
-        .catch(e => {
-          console.error('Errore durante l\'eliminazione:', e);
-          this.error = `Errore durante l\'eliminazione: ${e.message}`;
-        });
-        */
+    async saveEditedSetting() {
+      if (!this.currentEditingSetting.name || !this.currentEditingSetting.value) {
+        this.saveError = 'Nome parametro e Valore parametro sono obbligatori.';
+        return;
       }
+
+      this.isSaving = true;
+      this.saveError = null;
+
+      if (!this.authStore.isAuthenticated || !this.authStore.token || this.isTokenExpired(this.authStore.token)) {
+        this.saveError = 'Sessione scaduta o non autenticata. Impossibile salvare le modifiche.';
+        this.isSaving = false;
+        await this.authStore.logout();
+        this.$router.push('/');
+        return;
+      }
+
+      try {
+        const id = this.currentEditingSetting.customer_settings_id;
+        const apiUrl = `http://localhost:8000/api/customer_setting/${id}`;
+
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.authStore.token}`,
+          'Language': this.authStore.selectedLanguage || 'en-EN',
+          'Customer': this.companyName,
+        };
+
+        const payload = {
+          name: this.currentEditingSetting.name,
+          value: this.currentEditingSetting.value,
+          machine_id: this.currentEditingSetting.machine_id,
+          location_id: this.currentEditingSetting.location_id,
+        };
+
+        const response = await fetch(apiUrl, {
+          method: 'PUT',
+          headers: headers,
+          mode: 'cors',
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Errore sconosciuto' }));
+          throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || response.statusText}`);
+        }
+
+        console.log('Impostazione modificata con successo.');
+        this.isEditing = false;
+        this.fetchCustomerSettings(); // Ricarica la tabella per mostrare le modifiche
+      } catch (e) {
+        console.error('Errore durante la modifica:', e);
+        this.saveError = `Impossibile salvare le modifiche: ${e.message}.`;
+      } finally {
+        this.isSaving = false;
+      }
+    },
+
+
+    /**
+     * Gestisce l'eliminazione di un'impostazione.
+     * @param {Object} setting - L'oggetto impostazione da eliminare.
+     */
+    deleteSetting(setting) {
+      // Imposta il record da eliminare e abilita la modale
+      this.settingToDelete = setting;
+      this.isDeleting = true;
+      this.error = null;
+    },
+
+    /**
+     * Esegue la cancellazione effettiva dopo la conferma dell'utente.
+     */
+    async confirmDelete() {
+        if (!this.settingToDelete) return;
+        
+        this.isSaving = true; // Uso isSaving per disabilitare i pulsanti nella modale
+        this.error = null;
+
+        if (!this.authStore.isAuthenticated || !this.authStore.token || this.isTokenExpired(this.authStore.token)) {
+            this.error = 'Sessione scaduta o non autenticata. Impossibile eliminare l\'impostazione.';
+            this.isSaving = false;
+            this.isDeleting = false;
+            await this.authStore.logout();
+            this.$router.push('/');
+            return;
+        }
+
+        try {
+            const id = this.settingToDelete.customer_settings_id;
+            const apiUrl = `http://localhost:8000/api/customer_setting/${id}`;
+            const headers = {
+                'Authorization': `Bearer ${this.authStore.token}`,
+                'Customer': this.companyName,
+                'Language': this.authStore.selectedLanguage || 'en-EN',
+            };
+
+            const response = await fetch(apiUrl, {
+                method: 'DELETE',
+                headers: headers,
+                mode: 'cors',
+            });
+
+            if (response.ok) {
+                console.log('Impostazione eliminata con successo.');
+                this.isDeleting = false; // Chiude la modale di eliminazione
+                this.fetchCustomerSettings(); // Ricarica i dati per aggiornare la tabella
+            } else {
+                const errorData = await response.json().catch(() => ({ message: 'Errore sconosciuto' }));
+                throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || response.statusText}`);
+            }
+
+        } catch (e) {
+            console.error('Errore durante l\'eliminazione:', e);
+            this.error = `Errore durante l\'eliminazione: ${e.message}`;
+        } finally {
+            this.isSaving = false;
+        }
     },
 
     /**
@@ -765,5 +933,145 @@ table tbody tr:hover {
   .add-button {
     width: 100%;
   }
+}
+
+/* Stili per la modale di modifica */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000; /* Assicura che sia sopra l'overlay principale */
+}
+
+.modal-content {
+  background-color: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 900px; /* Aumentata la larghezza massima per il nuovo layout */
+  max-height: 90%;
+  overflow-y: auto;
+}
+
+.modal-content h4 {
+  color: #007bff;
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 1.5em;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 10px;
+}
+
+.modal-input-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: flex-end;
+}
+.modal-input-row .input-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.modal-input-row .param-name-field {
+    flex-basis: 20%;
+    min-width: 180px;
+    flex-grow: 1;
+}
+.modal-input-row .param-value-field {
+    flex-basis: 40%;
+    min-width: 360px;
+    flex-grow: 2;
+}
+.modal-input-row .id-field {
+    flex-basis: 10%;
+    min-width: 90px;
+    flex-grow: 0.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.modal-validation-legend {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* Stili per la modale di eliminazione */
+.delete-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.delete-modal-content {
+  background-color: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 500px;
+  text-align: center;
+}
+
+.delete-title {
+  color: #dc3545;
+  font-size: 2em;
+  font-weight: bold;
+  margin: 0;
+}
+
+.delete-message {
+  font-size: 1.1em;
+  color: #555;
+  margin: 15px 0 10px;
+}
+
+.delete-item {
+  font-size: 1.2em;
+  color: #333;
+  margin: 10px 0 20px;
+}
+
+.delete-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.delete-confirm-button {
+  background-color: #dc3545;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  transition: background-color 0.3s ease;
+}
+
+.delete-confirm-button:hover {
+  background-color: #c82333;
 }
 </style>

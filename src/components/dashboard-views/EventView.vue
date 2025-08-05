@@ -7,8 +7,7 @@
       item-key="customer_id"
       display-key="company_name"
       machine-count-key="total_machines"
-      logo-key="logo_base64"
-      logo-content-type-key="logo_content_type"
+      logo-key="logo_url"
       :can-delete="false" 
       label-singular="cliente"
       label-plural="clienti"
@@ -188,49 +187,56 @@ export default {
 
         if (response.ok) {
           const rawData = await response.json();
-          console.log('Dati API ricevuti per Clienti (per EventView sidebar):', rawData);
-          if (rawData.data && rawData.data.items && rawData.data.items.length > 0) {
-            console.log('Primo item API per Clienti (per EventView sidebar):', rawData.data.items[0]);
-          }
 
           const itemsToMap = rawData.data && rawData.data.items ? rawData.data.items : [];
           totalItems.value = rawData.data && rawData.data.total_items ? rawData.data.total_items : itemsToMap.length;
 
-          const mappedItems = itemsToMap.map(item => {
-            // Mappa i campi in base alla risposta API per i clienti
-            const logoBase64 = item.logo_base64 || null;
-            let logoContentType = item.logo_content || null;
-
-            if (logoContentType === 'logo/png') { logoContentType = 'image/png'; }
-            else if (logoContentType === 'logo/jpeg' || logoContentType === 'logo/jpg') { logoContentType = 'image/jpeg'; }
+          const mappedCustomers = itemsToMap.map(item => {
+            // Non mappiamo più logo_base64 e logo_content_type qui
+            // Mappiamo logo_url che viene dal serializzatore backend
+            const logoUrl = item.logo_url || null; 
 
             return {
-              customer_id: item.customer_id, // ID cliente
-              company_name: item.company_name, // Nome azienda cliente
-              total_machines: item.total_machines || 0, // Macchine del cliente
-              logo_base64: logoBase64,
-              logo_content_type: logoContentType,
-              user_custom_name: item.user_custom_name || 'N/A',
-              expiry_date: item.expiry_date || 'N/A',
-              address: item.address || 'N/A', // Aggiungi altri campi cliente se utili
+              customer_id: item.customer_id,
+              company_name: item.company_name,
+              total_machines: item.total_machines || 0,
+              logo_url: logoUrl, // MODIFICATO QUI: usa logo_url
+              address: item.address || 'N/A',
               fiscal_data: item.fiscal_data || 'N/A',
-              latitude: item.latitude || 'N/A',
-              longitude: item.longitude || 'N/A',
+              latitude: item.latitude || 'N/A', 
+              longitude: item.longitude || 'N/A', 
+              email: item.email || 'N/A',
+              vat_number: item.vat_number || 'N/A',
+              fiscal_code: item.fiscal_code || 'N/A',
+              address_latitude: item.address_latitude || '',
+              address_longitude: item.address_longitude || '',
+              logo_name: item.logo_name || null, // logo_name potrebbe ancora essere utile per l'upload
             };
           });
           
-          if (append) { customerList.value = [...customerList.value, ...mappedItems]; } else { customerList.value = mappedItems; }
-          authStore.saveCustomerListToCache(customerList.value); // Salva la cache dei clienti
+          if (append) {
+            customerList.value = [...customerList.value, ...mappedCustomers];
+          } else {
+            customerList.value = mappedCustomers;
+          }
+
+          authStore.saveCustomerListToCache(customerList.value);
+
         } else {
           const errorText = await response.text();
-          console.error('Errore nel caricamento Clienti (risposta non ok) per EventView:', response.status, errorText);
-          error.value = `Errore nel caricamento: ${response.status} - ${errorText}`;
-          if (response.status === 401 || response.status === 403) { await authStore.logout(); router.push('/'); }
+          console.error('Errore nel recupero clienti (risposta non ok):', response.status, errorText);
+          error.value = `Errore nel caricamento dei clienti: ${response.status} - ${errorText}`;
+          if (response.status === 401 || response.status === 403) {
+            await authStore.logout();
+            router.push('/');
+          }
         }
       } catch (err) {
-        console.error('Errore di rete o del server (catch) per Clienti in EventView:', err);
-        error.value = 'Impossibile connettersi al server per i dati dei clienti.';
-      } finally { isLoading.value = false; }
+        console.error('Errore di rete o del server (catch):', err);
+        error.value = 'Impossibile connettersi al server per i dati dei clienti. Controlla che il backend sia attivo e le configurazioni CORS.';
+      } finally {
+        isLoading.value = false;
+      }
     };
 
     onMounted(() => {

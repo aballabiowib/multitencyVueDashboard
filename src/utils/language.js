@@ -4,6 +4,7 @@
 import flag_it_IT from '@/assets/flags/it-IT.png';
 import flag_en_EN from '@/assets/flags/en-EN.png';
 import flag_nl_NL from '@/assets/flags/nl-NL.png';
+import flag_de_DE from '@/assets/flags/de-DE.png';
 import flag_at_AT from '@/assets/flags/at-AT.png';
 import flag_be_BE from '@/assets/flags/be-BE.png';
 import flag_dk_DK from '@/assets/flags/dk-DK.png';
@@ -25,6 +26,7 @@ export const languagesData = [
   { code: 'it-IT', name: 'Italiano', src: flag_it_IT },
   { code: 'en-EN', name: 'English', src: flag_en_EN },
   { code: 'nl-NL', name: 'Nederland', src: flag_nl_NL },
+  { code: 'de-DE', name: 'German', src: flag_de_DE },
   { code: 'at-AT', name: 'Austrian', src: flag_at_AT },
   { code: 'be-BE', name: 'Belgium', src: flag_be_BE },
   { code: 'dk-DK', name: 'Danmark', src: flag_dk_DK },

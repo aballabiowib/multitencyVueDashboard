@@ -1,6 +1,5 @@
 <template>
   <div class="filterable-sidebar">
-    <!-- Sezione Superiore: Ricerca e Ordinamento -->
     <div class="sidebar-header-controls">
       <input 
         type="text" 
@@ -13,7 +12,6 @@
       </button>
     </div>
 
-    <!-- Sezione Principale: Lista Scorrevole degli Elementi -->
     <div class="sidebar-content-list">
       <div 
         v-for="item in sortedItems" 
@@ -25,10 +23,9 @@
       >
         <div class="item-row">
           <div class="item-icon">
-            <!-- Icon or Logo -->
-            <template v-if="item[logoKey] && item[logoContentTypeKey]">
-              <img :src="`data:${item[logoContentTypeKey]};base64, ${item[logoKey]}`" class="item-logo" alt="logo"/>
-            </template>
+            <template v-if="item[logoKey]"> 
+              <img :src="item[logoKey]" class="item-logo" :alt="`${item[displayKey]} logo`"/>
+              </template>
             <template v-else>
               <font-awesome-icon :icon="['fas', 'user-tie']" class="item-default-icon" />
             </template>
@@ -50,7 +47,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted } from 'vue'; // Importa watch e onMounted
+import { ref, computed, watch, onMounted } from 'vue';
 
 export default {
   name: 'FilterableSidebar',
@@ -60,50 +57,47 @@ export default {
       required: true,
       default: () => []
     },
-    itemKey: { // Unique key for the item (e.g., 'customer_id', 'location_id')
+    itemKey: { // Chiave univoca per l'elemento (es. 'customer_id')
       type: String,
       required: true
     },
-    displayKey: { // Key for the main text (e.g., 'company_name', 'location_name')
+    displayKey: { // Chiave per il testo principale (es. 'company_name')
       type: String,
       required: true
     },
-    machineCountKey: { // Key for the number of associated machines/elements (e.g., 'total_machines')
+    machineCountKey: { // Chiave per il numero di macchine/elementi associati
       type: String,
-      default: null // Can be optional if not all lists have this data
+      default: null 
     },
-    logoKey: { // Key for the base64 logo (e.g., 'logo_base64')
-      type: String,
-      default: null
-    },
-    logoContentTypeKey: { // Key for the logo content type (e.g., 'logo_content')
+    logoKey: { // **MODIFICATO**: Ora è la chiave per l'URL dell'immagine (es. 'logo_url')
       type: String,
       default: null
     },
-    canDelete: { // Allows displaying the delete button
+    // **RIMOSSO**: logoContentTypeKey non è più necessaria con gli URL diretti
+    canDelete: { // Permette di visualizzare il pulsante di eliminazione
       type: Boolean,
       default: false
     },
-    labelSingular: { // Singular label for the count (e.g., 'machine')
+    labelSingular: { // Etichetta singolare per il conteggio (es. 'macchina')
       type: String,
       default: 'elemento'
     },
-    labelPlural: { // Plural label for the count (e.g., 'elements')
+    labelPlural: { // Etichetta plurale per il conteggio (es. 'macchine')
       type: String,
       default: 'elementi'
     },
-    // Nuova prop per il v-model
+    // Prop per il v-model dell'elemento selezionato
     selectedItem: {
       type: Object,
       default: null
     }
   },
-  emits: ['item-selected', 'item-deleted', 'update:selectedItem'], // Aggiungi 'update:selectedItem'
+  emits: ['item-selected', 'item-deleted', 'update:selectedItem'], 
 
   setup(props, { emit }) {
     const searchQuery = ref('');
-    const sortOrder = ref('asc'); // 'asc' for ascending, 'desc' for descending
-    const internalSelectedItemId = ref(null); // Usa un nome diverso per lo stato interno
+    const sortOrder = ref('asc'); 
+    const internalSelectedItemId = ref(null); 
 
     // Inizializza internalSelectedItemId dalla prop all'inizio
     onMounted(() => {
@@ -121,7 +115,7 @@ export default {
       }
     });
 
-    // Filters items based on search query
+    // Filtra gli elementi in base alla query di ricerca
     const filteredItems = computed(() => {
       if (!searchQuery.value) {
         return props.items;
@@ -132,11 +126,11 @@ export default {
       );
     });
 
-    // Sorts filtered items
+    // Ordina gli elementi filtrati
     const sortedItems = computed(() => {
-      const itemsCopy = [...filteredItems.value]; // Create a copy to avoid modifying the original array
+      const itemsCopy = [...filteredItems.value]; 
       if (!props.displayKey) {
-        return itemsCopy; // Cannot sort without a display key
+        return itemsCopy; 
       }
 
       return itemsCopy.sort((a, b) => {
@@ -151,30 +145,30 @@ export default {
       });
     });
 
-    // Toggles sort order
+    // Inverte l'ordine di ordinamento
     const toggleSortOrder = () => {
       sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
     };
 
-    // Handles item selection
+    // Gestisce la selezione di un elemento
     const selectItem = (item) => {
       if (internalSelectedItemId.value === item[props.itemKey]) {
         // Se l'elemento è già selezionato, deselezionalo
         internalSelectedItemId.value = null;
-        emit('update:selectedItem', null); // Emetti null per deselezionare nel genitore
-        emit('item-selected', null); // Emetti anche l'evento item-selected con null
+        emit('update:selectedItem', null); 
+        emit('item-selected', null); 
       } else {
         // Altrimenti, seleziona il nuovo elemento
         internalSelectedItemId.value = item[props.itemKey];
-        emit('update:selectedItem', item); // Emetti il nuovo elemento selezionato
-        emit('item-selected', item); // Emetti anche l'evento item-selected
+        emit('update:selectedItem', item); 
+        emit('item-selected', item); 
       }
     };
 
-    // Handles item deletion
+    // Gestisce l'eliminazione di un elemento
     const deleteItem = (item) => {
       if (confirm(`Sei sicuro di voler eliminare "${item[props.displayKey]}"?`)) {
-        emit('item-deleted', item[props.itemKey]); // Emits the event with the ID of the item to delete
+        emit('item-deleted', item[props.itemKey]); 
         // Se l'elemento eliminato era quello selezionato, deselezionalo
         if (internalSelectedItemId.value === item[props.itemKey]) {
           internalSelectedItemId.value = null;
@@ -183,16 +177,16 @@ export default {
       }
     };
 
-    // Label for machine count (singular/plural)
+    // Etichetta per il conteggio delle macchine (singolare/plurale)
     const machineLabel = (count) => {
-      if (props.machineCountKey === null || count === undefined || count === null) return ''; // Se la chiave o il conteggio non sono forniti
+      if (props.machineCountKey === null || count === undefined || count === null) return '';
       return count === 1 ? props.labelSingular : props.labelPlural;
     };
 
     return {
       searchQuery,
       sortOrder,
-      internalSelectedItemId, // Esposto per il template
+      internalSelectedItemId, 
       filteredItems, 
       sortedItems,
       toggleSortOrder,
@@ -206,13 +200,13 @@ export default {
 
 <style scoped>
 .filterable-sidebar {
-  width: 100%; /* Occupies available width in its container */
-  height: 100%; /* Occupies available height */
+  width: 100%; 
+  height: 100%; 
   display: flex;
   flex-direction: column;
-  background-color: #f8f9fa; /* Light background for the inner sidebar */
-  border-right: 1px solid #e0e0e0; /* Light right border */
-  box-shadow: 1px 0 5px rgba(0, 0, 0, 0.05); /* Light shadow */
+  background-color: #f8f9fa; 
+  border-right: 1px solid #e0e0e0; 
+  box-shadow: 1px 0 5px rgba(0, 0, 0, 0.05); 
 }
 
 .sidebar-header-controls {
@@ -224,7 +218,7 @@ export default {
 }
 
 .search-input {
-  flex-grow: 1; /* Occupies available space */
+  flex-grow: 1; 
   padding: 8px 12px;
   border: 1px solid #ccc;
   border-radius: 5px;
@@ -254,35 +248,35 @@ export default {
 }
 
 .sidebar-content-list {
-  flex-grow: 1; /* Occupies all remaining vertical space */
-  overflow-y: auto; /* Adds vertical scrollbar */
+  flex-grow: 1; 
+  overflow-y: auto; 
   padding: 10px;
-  height: 0; /* Crucial for overflow-y to work in a flex container */
+  height: 0; 
 }
 
-/* Styles for the scrollbar (Webkit browsers) */
+/* Stili per la scrollbar (Webkit browsers) */
 .sidebar-content-list::-webkit-scrollbar {
-  width: 8px; /* Scrollbar width */
+  width: 8px; 
 }
 
 .sidebar-content-list::-webkit-scrollbar-track {
-  background: #f1f1f1; /* Track background color */
+  background: #f1f1f1; 
   border-radius: 10px;
 }
 
 .sidebar-content-list::-webkit-scrollbar-thumb {
-  background: #888; /* Scrollbar thumb color */
+  background: #888; 
   border-radius: 10px;
 }
 
 .sidebar-content-list::-webkit-scrollbar-thumb:hover {
-  background: #555; /* Color on hover */
+  background: #555; 
 }
 
 .item-element {
   background-color: #ffffff;
   border: 1px solid #e0e0e0;
-  border-radius: 7px; /* Matches user snippet border-radius */
+  border-radius: 7px; 
   margin-bottom: 10px;
   padding: 10px;
   cursor: pointer;
@@ -296,38 +290,31 @@ export default {
 }
 
 .item-element.selected-item {
-  background-color: #e0f0ff; /* Color for selected item */
+  background-color: #e0f0ff; 
   border-color: #007bff;
-  box-shadow: 0 0 0 2px #007bff; /* More prominent blue border */
+  box-shadow: 0 0 0 2px #007bff; 
 }
 
 .item-row {
   display: flex;
   align-items: center;
-  gap: 10px; /* Space between columns */
+  gap: 10px; 
 }
 
 .item-icon {
-  flex-shrink: 0; /* Prevents icon from shrinking */
-  width: 40px; /* Fixed size for icon/logo */
+  flex-shrink: 0; 
+  width: 40px; 
   height: 40px;
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Removed: border-radius: 50%; to make it square */
-  background-color: #e9ecef; /* Background for default icon */
-  /* Removed: Debugging border */
-  /* border: 1px solid blue; */ 
+  background-color: #e9ecef; 
 }
 
 .item-logo {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  /* Removed: border-radius: 50%; to make it square */
-  /* Removed: Debugging border and background */
-  /* border: 1px solid green; */ 
-  /* background-color: rgba(255, 0, 0, 0.2); */ 
 }
 
 .item-default-icon {
@@ -336,8 +323,8 @@ export default {
 }
 
 .item-text {
-  flex-grow: 1; /* Occupies remaining space */
-  overflow: hidden; /* Hides overflowing text */
+  flex-grow: 1; 
+  overflow: hidden; 
 }
 
 .item-title {
@@ -345,9 +332,9 @@ export default {
   font-size: 1em;
   font-weight: bold;
   color: #333;
-  white-space: nowrap; /* Prevents title from wrapping */
+  white-space: nowrap; 
   overflow: hidden;
-  text-overflow: ellipsis; /* Adds "..." if title is too long */
+  text-overflow: ellipsis; 
 }
 
 .item-description {
@@ -361,7 +348,7 @@ export default {
 
 .item-delete {
   flex-shrink: 0;
-  color: #dc3545; /* Red for delete icon */
+  color: #dc3545; 
   cursor: pointer;
   font-size: 1.1em;
   transition: color 0.2s ease, transform 0.2s ease;

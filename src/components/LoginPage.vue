@@ -68,6 +68,7 @@ import image6 from '@/assets/images/locker5.png';
 import image7 from '@/assets/images/login-visual-1.svg';
 import image8 from '@/assets/images/penguin1.png';
 import image9 from '@/assets/images/penguin2.png';
+import image10 from '@/assets/images/comunerimini.jpeg';
 
 // Importa le tue immagini delle bandierine
 import flag_it_IT from '@/assets/flags/it-IT.png';
@@ -106,7 +107,8 @@ export default {
         image6,
         image7,
         image8,
-        image9
+        image9,
+        image10,
       ],
       currentImageIndex: 0,
       carouselInterval: null, // Per l'autoplay del carosello
