@@ -1,6 +1,5 @@
 <template>
   <div class="customer-view-container">
-    <!-- Sidebar Filtro/Ordinamento per Clienti -->
     <FilterableSidebar
       :items="customerList"
       item-key="customer_id"
@@ -15,49 +14,44 @@
       @item-deleted="handleCustomerDeleted"
     />
 
-    <!-- Contenuto Principale della Vista Clienti -->
     <div class="customer-main-content">
       <div class="customer-main-header">
         <h2>Dettagli Cliente</h2>
         <div class="header-actions">
-          <!-- Pulsante "Aggiungi Nuovo Cliente" (visibile quando nessun cliente è selezionato) -->
           <button v-if="!selectedCustomer" @click="addNewCustomer" class="header-action-button add-new-button">
             Aggiungi Nuovo Cliente
           </button>
-          <!-- Pulsante "Esci" (visibile quando un cliente è selezionato) -->
+          
+          <button v-if="!selectedCustomer" @click="openApplication('DeletedCustomerView')" class="header-action-button add-new-button restore-button">
+            Ripristina cliente cancellato
+          </button>
+
           <button v-else @click="exitCustomerDetails" class="header-action-button exit-button">
             Esci
           </button>
         </div>
       </div>
 
-      <!-- Messaggio quando nessun cliente è selezionato -->
       <div v-if="!selectedCustomer && !isLoading && !error && customerList.length > 0" class="no-customer-selected">
         <p>Seleziona un cliente dalla barra laterale per visualizzarne i dettagli.</p>
       </div>
 
-      <!-- Spinner di caricamento iniziale (solo se la lista è vuota) -->
       <div v-else-if="isLoading && customerList.length === 0" class="initial-loading-message">
         <p>Caricamento clienti...</p>
       </div>
 
-      <!-- Messaggio di errore -->
       <div v-else-if="error" class="error-message">
         <p>Errore: {{ error }}</p>
       </div>
 
-      <!-- Nessun cliente trovato dopo il caricamento -->
       <div v-else-if="customerList.length === 0 && !isLoading" class="no-results-message">
         <p>Nessun cliente trovato.</p>
       </div>
       
-      <!-- Contenuto quando un cliente è selezionato -->
       <div v-else-if="selectedCustomer" class="selected-customer-details-layout">
-        <!-- Sezione Sinistra: Dati del Cliente (input modificabili) -->
         <div class="customer-data-section">
           <h3>Dati Anagrafici e Contatto</h3>
           
-          <!-- Azienda ed Email affiancate -->
           <div class="grid-row-2-columns">
             <div class="input-field-group">
               <label for="companyName">Azienda:</label>
@@ -79,7 +73,6 @@
             </div>
           </div>
 
-          <!-- Indirizzo (intera riga) -->
           <div class="input-field-group">
             <label for="address">Indirizzo:</label>
             <input 
@@ -90,7 +83,6 @@
             >
           </div>
           
-          <!-- Partita IVA e Codice Fiscale affiancati -->
           <div class="grid-row-2-columns">
             <div class="input-field-group">
               <label for="vatNumber">Partita IVA:</label>
@@ -112,7 +104,6 @@
             </div>
           </div>
 
-          <!-- Latitudine e Longitudine affiancate -->
           <div class="grid-row-2-columns">
             <div class="input-field-group">
               <label for="addressLatitude">Latitudine:</label>
@@ -134,7 +125,6 @@
             </div>
           </div>
 
-          <!-- Logo Upload Section -->
           <div class="input-field-group">
             <label>Logo:</label>
             <div 
@@ -165,7 +155,6 @@
 
         </div>
 
-        <!-- Sezione Destra: Pulsanti Funzione -->
         <div class="customer-buttons-section">
           <h3>Funzioni Disponibili</h3>
           <div class="button-list-vertical">
@@ -176,15 +165,12 @@
             <button class="action-button" @click="openApplication('DefectListView')">Elenco difetti</button>
             <button class="action-button" @click="openApplication('LanguageSelectionView')">Selezione lingua</button>
             <button class="action-button" @click="openApplication('EmailTemplateMessagesView')">Messaggi email template</button>
-            <!-- <button class="action-button" @click="openApplication('PasswordSettingsView')">Password settings</button> -->
-          </div>
+            </div>
         </div>
       </div>
 
-      <!-- Legenda di Validazione (NUOVA POSIZIONE) -->
       <ValidationLegend v-if="selectedCustomer"/>
 
-      <!-- Pulsante "Carica Altri" -->
       <div v-if="hasMorePages && !isLoading" class="load-more-container">
         <button @click="loadMoreCustomers" class="load-more-button">Carica Altri</button>
       </div>
@@ -193,7 +179,6 @@
       </div>
     </div>
 
-    <!-- Spinner di caricamento in overlay (solo se la lista è vuota) -->
     <div v-if="isLoading && customerList.length === 0" class="loading-overlay">
       <div class="spinner-container">
         <h3 class="loading-title">Attendere!</h3>
@@ -202,7 +187,6 @@
       </div>
     </div>
 
-    <!-- Overlay per le Viste delle Applicazioni -->
     <component 
       :is="currentApplicationComponent" 
       v-if="showApplicationOverlay" 
@@ -226,6 +210,8 @@ import CustomerSettingsView from '@/components/customer-application-views/Custom
 import DefectListView from '@/components/customer-application-views/DefectListView.vue';
 import LanguageSelectionView from '@/components/customer-application-views/LanguageSelectionView.vue';
 import EmailTemplateMessagesView from '@/components/customer-application-views/EmailTemplateMessagesView.vue';
+// NUOVO: Importa il componente per i clienti cancellati
+import DeletedCustomerView from '@/components/customer-application-views/DeletedCustomerView.vue';
 // import PasswordSettingsView from '@/components/customer-application-views/PasswordSettingsView.vue';
 import ValidationLegend from '@/components/ValidationLegend.vue'; // Importa il componente leggenda con percorso corretto
 
@@ -249,6 +235,8 @@ export default {
     DefectListView,
     LanguageSelectionView,
     EmailTemplateMessagesView,
+    // NUOVO: Registra il nuovo componente
+    DeletedCustomerView,
     // PasswordSettingsView,
     ValidationLegend, // Registra il componente leggenda
   },
@@ -268,9 +256,6 @@ export default {
 
     // Refs for logo handling
     const fileInputRef = ref(null);
-    // displayLogo e displayLogoType non sono più necessari per la visualizzazione diretta
-    // const displayLogo = ref(null);
-    // const displayLogoType = ref(null);
 
     // Stato per la gestione delle finestre delle applicazioni
     const currentApplicationComponent = shallowRef(null); // Usa shallowRef per i componenti dinamici
@@ -412,15 +397,13 @@ export default {
           totalItems.value = rawData.data && rawData.data.total_items ? rawData.data.total_items : itemsToMap.length;
 
           const mappedCustomers = itemsToMap.map(item => {
-            // Non mappiamo più logo_base64 e logo_content_type qui
-            // Mappiamo logo_url che viene dal serializzatore backend
             const logoUrl = item.logo_url || null; 
 
             return {
               customer_id: item.customer_id,
               company_name: item.company_name,
               total_machines: item.total_machines || 0,
-              logo_url: logoUrl, // MODIFICATO QUI: usa logo_url
+              logo_url: logoUrl,
               address: item.address || 'N/A',
               fiscal_data: item.fiscal_data || 'N/A',
               latitude: item.latitude || 'N/A', 
@@ -430,7 +413,7 @@ export default {
               fiscal_code: item.fiscal_code || 'N/A',
               address_latitude: item.address_latitude || '',
               address_longitude: item.address_longitude || '',
-              logo_name: item.logo_name || null, // logo_name potrebbe ancora essere utile per l'upload
+              logo_name: item.logo_name || null,
             };
           });
           
@@ -507,15 +490,13 @@ export default {
 
           const item = rawData; 
           
-          // Non mappiamo più logo_base64 e logo_content_type per la visualizzazione
-          // Mappiamo logo_url se presente
           const logoUrl = item.logo_url || null; 
 
           selectedCustomer.value = {
             customer_id: item.customer_id,
             company_name: item.company_name,
             total_machines: item.total_machines || 0,
-            logo_url: logoUrl, // MODIFICATO QUI: usa logo_url
+            logo_url: logoUrl,
             address: item.address || 'N/A',
             fiscal_data: item.fiscal_data || 'N/A',
             latitude: item.latitude || 'N/A', 
@@ -525,13 +506,9 @@ export default {
             fiscal_code: item.fiscal_code || '',
             address_latitude: item.address_latitude || '',
             address_longitude: item.address_longitude || '',
-            logo_name: item.logo_name || null, // Manteniamo logo_name per l'upload
+            logo_name: item.logo_name || null,
           };
           
-          // displayLogo e displayLogoType non sono più necessari per la visualizzazione diretta
-          // displayLogo.value = selectedCustomer.value.logo_base64;
-          // displayLogoType.value = selectedCustomer.value.logo_content_type;
-
         } else {
           const errorText = await response.text();
           console.error('Errore nel recupero dettagli cliente (risposta non ok):', response.status, errorText);
@@ -589,13 +566,11 @@ export default {
     const handleCustomerSelected = async (item) => {
       if (!item) {
         selectedCustomer.value = null;
-        // displayLogo.value = null; // Non più necessario per visualizzazione diretta
-        // displayLogoType.value = null; // Non più necessario per visualizzazione diretta
         console.log('Cliente deselezionato dalla sidebar.');
         return;
       }
       console.log('Cliente selezionato dalla sidebar, recupero dettagli completi per ID:', item.customer_id);
-      console.log('Logo URL ricevuto per il cliente selezionato:', item.logo_url); // Log added here
+      console.log('Logo URL ricevuto per il cliente selezionato:', item.logo_url);
       await fetchCustomerDetails(item.customer_id);
     };
 
@@ -603,7 +578,6 @@ export default {
       if (!selectedCustomer.value) return;
 
       console.log('Salvataggio modifiche per cliente:', selectedCustomer.value);
-      // La logica di upload del logo rimane invariata se usi Base64 per l'upload
       console.log('Nuovi dati logo da salvare:', {
         logo_name: selectedCustomer.value.logo_name,
         logo_base64: selectedCustomer.value.logo_base64 ? selectedCustomer.value.logo_base64.substring(0, 30) + '...' : null,
@@ -613,7 +587,6 @@ export default {
       console.log('Modifiche simulate salvate!');
       const index = customerList.value.findIndex(c => c.customer_id === selectedCustomer.value.customer_id);
       if (index !== -1) {
-        // Aggiorna l'elemento nella lista con i nuovi dati, inclusi logo_url se modificato
         customerList.value[index] = { ...selectedCustomer.value };
         authStore.saveCustomerListToCache(customerList.value);
       }
@@ -632,20 +605,16 @@ export default {
         address_latitude: '',
         address_longitude: '',
         total_machines: 0,
-        logo_url: null, // MODIFICATO QUI: usa logo_url
+        logo_url: null,
         logo_name: null,
-        logo_base64: null, // Mantenuto per l'upload
-        logo_content_type: null, // Mantenuto per l'upload
+        logo_base64: null,
+        logo_content_type: null,
       };
-      // displayLogo.value = null; // Non più necessario
-      // displayLogoType.value = null; // Non più necessario
       console.log('Logica per aggiungere un nuovo cliente non implementata. Form vuoto caricato.');
     };
 
     const exitCustomerDetails = () => {
       selectedCustomer.value = null;
-      // displayLogo.value = null; // Non più necessario
-      // displayLogoType.value = null; // Non più necessario
       console.log('Uscito dalla visualizzazione dettagliata del cliente.');
     };
 
@@ -654,8 +623,6 @@ export default {
       customerList.value = customerList.value.filter(cust => cust.customer_id !== itemId);
       if (selectedCustomer.value && selectedCustomer.value.customer_id === itemId) {
         selectedCustomer.value = null;
-        // displayLogo.value = null; // Non più necessario
-        // displayLogoType.value = null; // Non più necessario
       }
       totalItems.value--;
       authStore.saveCustomerListToCache(customerList.value);
@@ -693,8 +660,6 @@ export default {
         selectedCustomer.value.logo_content_type = file.type;
         selectedCustomer.value.logo_name = file.name;
 
-        // Dopo l'upload, potresti voler aggiornare logo_url per la visualizzazione immediata
-        // Questo è un placeholder, l'URL reale verrebbe dal backend dopo un salvataggio
         selectedCustomer.value.logo_url = `data:${file.type};base64,${base64String}`; 
       };
       reader.readAsDataURL(file);
@@ -705,23 +670,12 @@ export default {
         selectedCustomer.value.logo_base64 = null;
         selectedCustomer.value.logo_content_type = null;
         selectedCustomer.value.logo_name = null;
-        selectedCustomer.value.logo_url = null; // MODIFICATO QUI: pulisci anche logo_url
+        selectedCustomer.value.logo_url = null;
       }
-      // displayLogo.value = null; // Non più necessario
-      // displayLogoType.value = null; // Non più necessario
       if (fileInputRef.value) {
         fileInputRef.value.value = '';
       }
     };
-
-    // Questo watcher non è più strettamente necessario per la visualizzazione diretta del logo,
-    // ma può essere mantenuto se displayLogo/displayLogoType sono usati altrove.
-    // watch(() => selectedCustomer.value?.logo_base64, (newLogoBase64) => {
-    //   if (selectedCustomer.value) {
-    //     displayLogo.value = newLogoBase64;
-    //     displayLogoType.value = selectedCustomer.value.logo_content_type;
-    //   }
-    // });
 
     // --- LOGICA DI APERTURA/CHIUSURA APPLICAZIONI ---
     // Mappa i nomi dei componenti a stringhe per l'uso con shallowRef
@@ -733,18 +687,18 @@ export default {
       DefectListView,
       LanguageSelectionView,
       EmailTemplateMessagesView,
-      //PasswordSettingsView,
+      // NUOVO: Aggiungi il nuovo componente alla mappa
+      DeletedCustomerView,
     };
 
     const openApplication = (componentName) => {
       if (appComponentsMap[componentName]) {
         currentApplicationComponent.value = appComponentsMap[componentName];
-        // Prepara le props comuni per tutti i componenti, se un cliente è selezionato
         if (selectedCustomer.value && selectedCustomer.value.company_name) {
           currentApplicationProps.value = { companyName: selectedCustomer.value.company_name, customerId: selectedCustomer.value.customer_id };
           console.log(`Passando companyName a ${componentName}: ${selectedCustomer.value.company_name}`);
         } else {
-          currentApplicationProps.value = {}; // Assicurati che non ci siano props residue se nessun cliente è selezionato
+          currentApplicationProps.value = {};
           console.warn(`Tentativo di aprire ${componentName} senza companyName selezionato.`);
         }
         
@@ -758,10 +712,9 @@ export default {
     const closeApplication = () => {
       showApplicationOverlay.value = false;
       currentApplicationComponent.value = null;
-      currentApplicationProps.value = {}; // Cancella le props alla chiusura
+      currentApplicationProps.value = {};
       console.log('Chiusura applicazione.');
     };
-
 
     return {
       customerList,
@@ -776,20 +729,16 @@ export default {
       addNewCustomer,
       exitCustomerDetails,
       fileInputRef,
-      // displayLogo, // Non più esposto per visualizzazione diretta
-      // displayLogoType, // Non più esposto per visualizzazione diretta
       triggerFileInput,
       handleFileDrop,
       handleFileSelect,
       clearLogo,
       authStore, 
-      // Esporre le nuove variabili e funzioni per le applicazioni
       currentApplicationComponent,
       showApplicationOverlay,
       openApplication,
       closeApplication,
       currentApplicationProps, 
-      // Esporre le computed per la validazione
       getValidationClass,
       isCompanyNameValid,
       isEmailValid,
@@ -804,6 +753,7 @@ export default {
 </script>
 
 <style scoped>
+/* Stili esistenti... */
 .customer-view-container {
   display: flex;
   height: 100%;
@@ -840,6 +790,11 @@ export default {
   margin: 0;
   color: #007bff;
   font-size: 2em;
+}
+
+.header-actions {
+  display: flex; /* Aggiunto per allineare i pulsanti */
+  gap: 10px;    /* Spazio tra i pulsanti */
 }
 
 .header-action-button {
@@ -956,16 +911,14 @@ export default {
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
 }
 
-/* Nuovo stile per le righe a due colonne */
 .grid-row-2-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr; /* Due colonne di uguale larghezza */
-  gap: 15px; /* Spazio tra le colonne */
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
 }
 
-/* Assicurati che i campi input all'interno della griglia mantengano il loro layout */
 .grid-row-2-columns .input-field-group {
-  margin-bottom: 0; /* Rimuovi il margin-bottom se gestito dal gap della griglia */
+  margin-bottom: 0;
 }
 
 
@@ -1003,11 +956,10 @@ export default {
   gap: 15px;
 }
 
-/* Nuovo stile per l'allineamento verticale dei pulsanti */
 .button-list-vertical {
   display: flex;
   flex-direction: column;
-  gap: 10px; /* Spazio tra i pulsanti */
+  gap: 10px;
 }
 
 .action-button {
@@ -1021,7 +973,7 @@ export default {
   font-weight: bold;
   transition: background-color 0.3s ease, transform 0.2s ease;
   white-space: nowrap;
-  width: 100%; /* Assicura che i pulsanti occupino tutta la larghezza disponibile */
+  width: 100%;
 }
 
 .action-button:hover {
@@ -1098,7 +1050,6 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
-/* Stili per il logo upload box */
 .logo-upload-box {
   width: 100px;
   height: 100px;
@@ -1112,7 +1063,7 @@ export default {
   cursor: pointer;
   background-color: #f9f9f9;
   position: relative;
-  overflow: hidden; /* Assicura che il logo non esca dai bordi */
+  overflow: hidden;
 }
 
 .logo-upload-box:hover {
@@ -1142,7 +1093,7 @@ export default {
   position: absolute;
   top: 5px;
   right: 5px;
-  background-color: rgba(220, 53, 69, 0.8); /* Rosso semi-trasparente */
+  background-color: rgba(220, 53, 69, 0.8);
   color: white;
   border: none;
   border-radius: 50%;
@@ -1160,7 +1111,6 @@ export default {
   background-color: #dc3545;
 }
 
-/* Classi per i bordi di validazione (con !important per priorità) */
 .input-field-group input.border-red {
   border-color: #dc3545 !important;
   box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25) !important;
@@ -1181,5 +1131,16 @@ export default {
   .selected-customer-details-layout {
     grid-template-columns: 1fr;
   }
+}
+/* NUOVO STILE per il pulsante Ripristina */
+.restore-button {
+  background-color: #ffc107; /* Un colore giallo/arancione per indicare "attenzione" */
+  color: #333;
+  border-color: #ffc107;
+}
+
+.restore-button:hover {
+  background-color: #e0a800; /* Versione più scura al passaggio del mouse */
+  color: white;
 }
 </style>
