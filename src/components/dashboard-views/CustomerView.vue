@@ -42,13 +42,8 @@
         </div>
       </div>
 
-      <!-- Messaggio quando nessun cliente è selezionato -->
-      <div v-if="!selectedCustomer && !isLoading && !error && customerList.length > 0" class="no-customer-selected">
-        <p>Seleziona un cliente dalla barra laterale per visualizzarne i dettagli.</p>
-      </div>
-
       <!-- Spinner di caricamento iniziale (solo se la lista è vuota) -->
-      <div v-else-if="isLoading && customerList.length === 0" class="initial-loading-message">
+      <div v-if="isLoading && customerList.length === 0" class="initial-loading-message">
         <p>Caricamento clienti...</p>
       </div>
 
@@ -62,7 +57,7 @@
         <p>Nessun cliente trovato.</p>
       </div>
       
-      <!-- Contenuto quando un cliente è selezionato -->
+      <!-- Contenuto quando un cliente è selezionato o si sta aggiungendo un nuovo cliente -->
       <div v-else-if="selectedCustomer" class="selected-customer-details-layout">
         <!-- Sezione Sinistra: Dati del Cliente (input modificabili) -->
         <div class="customer-data-section">
@@ -176,8 +171,8 @@
 
         </div>
 
-        <!-- Sezione Destra: Pulsanti Funzione -->
-        <div class="customer-buttons-section">
+        <!-- Sezione Destra: Pulsanti Funzione (visibile solo se un cliente è selezionato E NON si sta aggiungendo un nuovo cliente) -->
+        <div v-if="selectedCustomer && !isAddingNewCustomer" class="customer-buttons-section">
           <h3>Funzioni Disponibili</h3>
           <div class="button-list-vertical">
             <button class="action-button" @click="openApplication('ServiceEmailView')">Email di servizio</button>
@@ -190,6 +185,11 @@
             <!-- <button class="action-button" @click="openApplication('PasswordSettingsView')">Password settings</button> -->
           </div>
         </div>
+      </div>
+
+      <!-- Messaggio quando nessun cliente è selezionato (Fallback) -->
+      <div v-else class="no-customer-selected">
+        <p>Seleziona un cliente dalla barra laterale per visualizzarne i dettagli.</p>
       </div>
 
       <!-- Legenda di Validazione (NUOVA POSIZIONE) -->
@@ -238,7 +238,6 @@ import DefectListView from '@/components/customer-application-views/DefectListVi
 import LanguageSelectionView from '@/components/customer-application-views/LanguageSelectionView.vue';
 import EmailTemplateMessagesView from '@/components/customer-application-views/EmailTemplateMessagesView.vue';
 import DeletedCustomerView from '@/components/customer-application-views/DeletedCustomerView.vue';
-// NUOVO: Importa il componente per i clienti dei distributori
 import DistributorCustomerView from '@/components/customer-application-views/DistributorCustomerView.vue';
 
 // import PasswordSettingsView from '@/components/customer-application-views/PasswordSettingsView.vue';
@@ -265,7 +264,6 @@ export default {
     LanguageSelectionView,
     EmailTemplateMessagesView,
     DeletedCustomerView,
-    // NUOVO: Registra il nuovo componente
     DistributorCustomerView,
     // PasswordSettingsView,
     ValidationLegend, // Registra il componente leggenda
@@ -275,6 +273,7 @@ export default {
     const selectedCustomer = ref(null);
     const isLoading = ref(true); // Indica il caricamento dalla rete
     const error = ref(null);
+    const isAddingNewCustomer = ref(false); // DICHIARAZIONE AGGIUNTA QUI
 
     const currentPage = ref(1);
     const initialPageSize = 40;
@@ -596,11 +595,13 @@ export default {
     const handleCustomerSelected = async (item) => {
       if (!item) {
         selectedCustomer.value = null;
+        isAddingNewCustomer.value = false; // Resetta lo stato di aggiunta
         console.log('Cliente deselezionato dalla sidebar.');
         return;
       }
       console.log('Cliente selezionato dalla sidebar, recupero dettagli completi per ID:', item.customer_id);
       console.log('Logo URL ricevuto per il cliente selezionato:', item.logo_url);
+      isAddingNewCustomer.value = false; // Resetta lo stato di aggiunta quando si seleziona un cliente esistente
       await fetchCustomerDetails(item.customer_id);
     };
 
@@ -620,6 +621,7 @@ export default {
         customerList.value[index] = { ...selectedCustomer.value };
         authStore.saveCustomerListToCache(customerList.value);
       }
+      isAddingNewCustomer.value = false; // Resetta lo stato dopo il salvataggio
     };
 
     const addNewCustomer = () => {
@@ -640,11 +642,13 @@ export default {
         logo_base64: null,
         logo_content_type: null,
       };
+      isAddingNewCustomer.value = true; // Imposta lo stato di aggiunta
       console.log('Logica per aggiungere un nuovo cliente non implementata. Form vuoto caricato.');
     };
 
     const exitCustomerDetails = () => {
       selectedCustomer.value = null;
+      isAddingNewCustomer.value = false; // Resetta lo stato di aggiunta
       console.log('Uscito dalla visualizzazione dettagliata del cliente.');
     };
 
@@ -653,6 +657,7 @@ export default {
       customerList.value = customerList.value.filter(cust => cust.customer_id !== itemId);
       if (selectedCustomer.value && selectedCustomer.value.customer_id === itemId) {
         selectedCustomer.value = null;
+        isAddingNewCustomer.value = false; // Resetta lo stato se il cliente eliminato era selezionato
       }
       totalItems.value--;
       authStore.saveCustomerListToCache(customerList.value);
@@ -718,7 +723,7 @@ export default {
       LanguageSelectionView,
       EmailTemplateMessagesView,
       DeletedCustomerView,
-      DistributorCustomerView, // NUOVO: Aggiungi il nuovo componente alla mappa
+      DistributorCustomerView,
     };
 
     const openApplication = (componentName) => {
@@ -752,6 +757,7 @@ export default {
       selectedCustomer,
       isLoading,
       error,
+      isAddingNewCustomer, // Esposto al template
       hasMorePages,
       handleCustomerSelected,
       handleCustomerDeleted,
