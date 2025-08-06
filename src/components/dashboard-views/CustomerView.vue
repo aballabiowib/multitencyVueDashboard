@@ -1,5 +1,6 @@
 <template>
   <div class="customer-view-container">
+    <!-- Sidebar Filtro/Ordinamento per Clienti -->
     <FilterableSidebar
       :items="customerList"
       item-key="customer_id"
@@ -14,44 +15,60 @@
       @item-deleted="handleCustomerDeleted"
     />
 
+    <!-- Contenuto Principale della Vista Clienti -->
     <div class="customer-main-content">
       <div class="customer-main-header">
         <h2>Dettagli Cliente</h2>
         <div class="header-actions">
+          <!-- Pulsante "Aggiungi Nuovo Cliente" (visibile quando nessun cliente è selezionato) -->
           <button v-if="!selectedCustomer" @click="addNewCustomer" class="header-action-button add-new-button">
             Aggiungi Nuovo Cliente
           </button>
           
+          <!-- Pulsante "Ripristina cliente cancellato" -->
           <button v-if="!selectedCustomer" @click="openApplication('DeletedCustomerView')" class="header-action-button add-new-button restore-button">
             Ripristina cliente cancellato
           </button>
 
+          <!-- NUOVO PULSANTE: Visualizza clienti dei distributori -->
+          <button v-if="!selectedCustomer" @click="openApplication('DistributorCustomerView')" class="header-action-button add-new-button distributor-view-button">
+            Visualizza clienti dei distributori
+          </button>
+
+          <!-- Pulsante "Esci" (visibile quando un cliente è selezionato) -->
           <button v-else @click="exitCustomerDetails" class="header-action-button exit-button">
             Esci
           </button>
         </div>
       </div>
 
+      <!-- Messaggio quando nessun cliente è selezionato -->
       <div v-if="!selectedCustomer && !isLoading && !error && customerList.length > 0" class="no-customer-selected">
         <p>Seleziona un cliente dalla barra laterale per visualizzarne i dettagli.</p>
       </div>
 
+      <!-- Spinner di caricamento iniziale (solo se la lista è vuota) -->
       <div v-else-if="isLoading && customerList.length === 0" class="initial-loading-message">
         <p>Caricamento clienti...</p>
       </div>
 
+      <!-- Messaggio di errore -->
       <div v-else-if="error" class="error-message">
         <p>Errore: {{ error }}</p>
       </div>
 
+      <!-- Nessun cliente trovato dopo il caricamento -->
       <div v-else-if="customerList.length === 0 && !isLoading" class="no-results-message">
         <p>Nessun cliente trovato.</p>
       </div>
       
+      <!-- Contenuto quando un cliente è selezionato -->
       <div v-else-if="selectedCustomer" class="selected-customer-details-layout">
+        <!-- Sezione Sinistra: Dati del Cliente (input modificabili) -->
         <div class="customer-data-section">
           <h3>Dati Anagrafici e Contatto</h3>
           
+          <!-- Azienda ed Email affiancate -->
           <div class="grid-row-2-columns">
             <div class="input-field-group">
               <label for="companyName">Azienda:</label>
@@ -73,6 +90,7 @@
             </div>
           </div>
 
+          <!-- Indirizzo (intera riga) -->
           <div class="input-field-group">
             <label for="address">Indirizzo:</label>
             <input 
@@ -83,6 +101,7 @@
             >
           </div>
           
+          <!-- Partita IVA e Codice Fiscale affiancati -->
           <div class="grid-row-2-columns">
             <div class="input-field-group">
               <label for="vatNumber">Partita IVA:</label>
@@ -104,6 +123,7 @@
             </div>
           </div>
 
+          <!-- Latitudine e Longitudine affiancate -->
           <div class="grid-row-2-columns">
             <div class="input-field-group">
               <label for="addressLatitude">Latitudine:</label>
@@ -125,6 +145,7 @@
             </div>
           </div>
 
+          <!-- Logo Upload Section -->
           <div class="input-field-group">
             <label>Logo:</label>
             <div 
@@ -155,6 +176,7 @@
 
         </div>
 
+        <!-- Sezione Destra: Pulsanti Funzione -->
         <div class="customer-buttons-section">
           <h3>Funzioni Disponibili</h3>
           <div class="button-list-vertical">
@@ -165,12 +187,15 @@
             <button class="action-button" @click="openApplication('DefectListView')">Elenco difetti</button>
             <button class="action-button" @click="openApplication('LanguageSelectionView')">Selezione lingua</button>
             <button class="action-button" @click="openApplication('EmailTemplateMessagesView')">Messaggi email template</button>
-            </div>
+            <!-- <button class="action-button" @click="openApplication('PasswordSettingsView')">Password settings</button> -->
+          </div>
         </div>
       </div>
 
+      <!-- Legenda di Validazione (NUOVA POSIZIONE) -->
       <ValidationLegend v-if="selectedCustomer"/>
 
+      <!-- Pulsante "Carica Altri" -->
       <div v-if="hasMorePages && !isLoading" class="load-more-container">
         <button @click="loadMoreCustomers" class="load-more-button">Carica Altri</button>
       </div>
@@ -179,6 +204,7 @@
       </div>
     </div>
 
+    <!-- Spinner di caricamento in overlay (solo se la lista è vuota) -->
     <div v-if="isLoading && customerList.length === 0" class="loading-overlay">
       <div class="spinner-container">
         <h3 class="loading-title">Attendere!</h3>
@@ -187,6 +213,7 @@
       </div>
     </div>
 
+    <!-- Overlay per le Viste delle Applicazioni -->
     <component 
       :is="currentApplicationComponent" 
       v-if="showApplicationOverlay" 
@@ -210,8 +237,10 @@ import CustomerSettingsView from '@/components/customer-application-views/Custom
 import DefectListView from '@/components/customer-application-views/DefectListView.vue';
 import LanguageSelectionView from '@/components/customer-application-views/LanguageSelectionView.vue';
 import EmailTemplateMessagesView from '@/components/customer-application-views/EmailTemplateMessagesView.vue';
-// NUOVO: Importa il componente per i clienti cancellati
 import DeletedCustomerView from '@/components/customer-application-views/DeletedCustomerView.vue';
+// NUOVO: Importa il componente per i clienti dei distributori
+import DistributorCustomerView from '@/components/customer-application-views/DistributorCustomerView.vue';
+
 // import PasswordSettingsView from '@/components/customer-application-views/PasswordSettingsView.vue';
 import ValidationLegend from '@/components/ValidationLegend.vue'; // Importa il componente leggenda con percorso corretto
 
@@ -235,8 +264,9 @@ export default {
     DefectListView,
     LanguageSelectionView,
     EmailTemplateMessagesView,
-    // NUOVO: Registra il nuovo componente
     DeletedCustomerView,
+    // NUOVO: Registra il nuovo componente
+    DistributorCustomerView,
     // PasswordSettingsView,
     ValidationLegend, // Registra il componente leggenda
   },
@@ -687,8 +717,8 @@ export default {
       DefectListView,
       LanguageSelectionView,
       EmailTemplateMessagesView,
-      // NUOVO: Aggiungi il nuovo componente alla mappa
       DeletedCustomerView,
+      DistributorCustomerView, // NUOVO: Aggiungi il nuovo componente alla mappa
     };
 
     const openApplication = (componentName) => {
@@ -715,6 +745,7 @@ export default {
       currentApplicationProps.value = {};
       console.log('Chiusura applicazione.');
     };
+
 
     return {
       customerList,
@@ -795,6 +826,8 @@ export default {
 .header-actions {
   display: flex; /* Aggiunto per allineare i pulsanti */
   gap: 10px;    /* Spazio tra i pulsanti */
+  flex-wrap: wrap; /* Permette ai pulsanti di andare a capo su schermi piccoli */
+  justify-content: flex-end; /* Allinea a destra */
 }
 
 .header-action-button {
@@ -1050,6 +1083,7 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
+/* Stili per il logo upload box */
 .logo-upload-box {
   width: 100px;
   height: 100px;
@@ -1111,6 +1145,7 @@ export default {
   background-color: #dc3545;
 }
 
+/* Classi per i bordi di validazione (con !important per priorità) */
 .input-field-group input.border-red {
   border-color: #dc3545 !important;
   box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25) !important;
@@ -1126,13 +1161,7 @@ export default {
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25) !important;
 }
 
-
-@media (max-width: 900px) {
-  .selected-customer-details-layout {
-    grid-template-columns: 1fr;
-  }
-}
-/* NUOVO STILE per il pulsante Ripristina */
+/* Stili per il pulsante Ripristina */
 .restore-button {
   background-color: #ffc107; /* Un colore giallo/arancione per indicare "attenzione" */
   color: #333;
@@ -1142,5 +1171,31 @@ export default {
 .restore-button:hover {
   background-color: #e0a800; /* Versione più scura al passaggio del mouse */
   color: white;
+}
+
+/* NUOVO STILE per il pulsante Visualizza clienti dei distributori */
+.distributor-view-button {
+  background-color: #17a2b8; /* Un colore ciano/blu per distinguere */
+  color: white;
+  border-color: #17a2b8;
+}
+
+.distributor-view-button:hover {
+  background-color: #138496; /* Versione più scura al passaggio del mouse */
+  color: white;
+}
+
+
+@media (max-width: 900px) {
+  .selected-customer-details-layout {
+    grid-template-columns: 1fr;
+  }
+  .header-actions {
+    flex-direction: column; /* Impila i pulsanti su schermi piccoli */
+    align-items: flex-end; /* Allinea a destra */
+  }
+  .header-action-button {
+    width: 100%; /* Rendi i pulsanti a larghezza piena */
+  }
 }
 </style>

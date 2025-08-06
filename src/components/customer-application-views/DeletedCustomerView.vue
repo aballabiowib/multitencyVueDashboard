@@ -3,12 +3,12 @@
     <div class="deleted-customer-container">
       <div class="header">
         <h2>Clienti Cancellati</h2>
-        <!-- Casella di ricerca aggiunta qui -->
+        <!-- Casella di ricerca aggiornata qui -->
         <div class="search-box">
-          <input type="text" v-model="searchQuery" placeholder="Cerca nel'elenco..." class="search-input">
-          <img src="@/components/icons/search.svg" alt="search">
+          <input type="text" v-model="searchQuery" placeholder="Cerca nell'elenco..." class="search-input">
+          <img src="@/components/icons/search.svg" alt="search" class="search-icon-img">
         </div>
-        <!-- Il pulsante di chiusura è qui e funziona correttamente -->
+        <!-- Il pulsante di chiusura in alto a destra è qui e funziona correttamente -->
         <button @click="$emit('close')" class="close-button">X</button>
       </div>
 
@@ -70,6 +70,11 @@
 
           <button @click="goToNextPage" :disabled="currentPage === totalPages" class="pagination-button">Successiva</button>
         </div>
+      </div>
+      
+      <!-- Pulsante di chiusura in basso a destra -->
+      <div class="footer-close-button-container">
+        <button @click="$emit('close')" class="action-button footer-close-button">Chiudi</button>
       </div>
     </div>
 
@@ -482,12 +487,21 @@ export default {
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: auto;
-  margin-right: 20px;
+  /* Rimosso margin-left: auto; per allinearlo meglio con gli altri elementi */
+  margin-right: 20px; 
+}
+
+/* Stili per l'immagine icona di ricerca */
+.search-icon-img {
+  position: absolute;
+  left: 10px; /* Posiziona l'immagine a sinistra */
+  width: 20px; /* Dimensione dell'icona */
+  height: 20px;
+  opacity: 0.7;
 }
 
 .search-input {
-  padding: 8px 12px 8px 35px;
+  padding: 8px 12px 8px 35px; /* Spazio a sinistra per l'icona */
   border: 1px solid #ccc;
   border-radius: 20px;
   font-size: 1em;
@@ -500,12 +514,6 @@ export default {
   border-color: #007bff;
   outline: none;
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
-}
-
-.search-icon {
-  position: absolute;
-  left: 12px;
-  color: #888;
 }
 
 .close-button {
@@ -673,6 +681,33 @@ tbody tr:hover {
   font-weight: bold;
 }
 
+/* Container per il pulsante di chiusura in basso */
+.footer-close-button-container {
+  display: flex;
+  justify-content: flex-end; /* Allinea a destra */
+  padding: 15px 30px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #f8f9fa;
+  border-radius: 0 0 10px 10px; /* Arrotonda gli angoli inferiori del container principale */
+}
+
+.footer-close-button {
+  background-color: #6c757d; /* Colore grigio per il pulsante di chiusura */
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.footer-close-button:hover {
+  background-color: #5a6268;
+  transform: translateY(-2px);
+}
+
 
 @media (max-width: 768px) {
   .deleted-customer-container {
@@ -689,6 +724,17 @@ tbody tr:hover {
   .header h2 {
     font-size: 1.5em;
     margin-bottom: 10px;
+  }
+
+  .search-box {
+    margin-left: 0; /* Rimuovi auto-margin per mobile */
+    margin-right: 0;
+    width: 100%; /* Occupa tutta la larghezza disponibile */
+    justify-content: center; /* Centra la casella di ricerca */
+  }
+
+  .search-input {
+    width: 100%; /* Occupa tutta la larghezza */
   }
 
   .close-button {
@@ -752,6 +798,11 @@ tbody tr:hover {
   .pagination-controls {
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .footer-close-button-container {
+    justify-content: center; /* Centra il pulsante in basso per mobile */
+    padding: 15px 20px;
   }
 }
 </style>

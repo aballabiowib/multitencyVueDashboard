@@ -32,6 +32,7 @@
               rows="15"
               v-model="templateDescription"
               :class="getValidationClass(isTemplateDescriptionValid, templateDescription, false)"
+              readonly="true" 
             ></textarea>
           </div>
         </div>
@@ -357,7 +358,7 @@ h3 {
   outline: none;
 }
 
-.input-box[readonly] {
+.input-box[readonly], .textarea-box[readonly] { /* MODIFICA QUI: Aggiunto anche per textarea */
   background-color: #e9ecef;
 }
 
